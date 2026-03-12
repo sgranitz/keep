@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>the keep</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #1a1612;
+  --bg2:       #221e19;
+  --card:      #2a2420;
+  --card2:     #322c26;
+  --border:    #3d3630;
+  --border2:   #4a433b;
+  --amber:     #c8a96e;
+  --amber-dim: #9a7e4f;
+  --amber-bg:  rgba(200,169,110,0.08);
+  --cream:     #e8dcc8;
+  --muted:     #8a7e6e;
+  --faint:     #5a5040;
+  --red:       #c87060;
+  --blue:      #6090b0;
+  --green:     #70a880;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--cream);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  padding: 24px 16px 60px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.wordmark {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--cream);
+  letter-spacing: -0.02em;
+}
+.wordmark em { font-style: italic; color: var(--amber); }
+.site-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+.main-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+.nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.nav-btn.active { background: var(--card2); color: var(--cream); border: 1px solid var(--border2); }
+.vault-banner {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+.vault-name { color: var(--amber); font-size: 11px; }
+.kpis { display: flex; gap: 18px; flex-wrap: wrap; }
+.kpi { display: flex; gap: 8px; align-items: baseline; }
+.kpi strong { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--cream); font-weight: 400; }
+.kpi span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.section-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr .8fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.field-row.stock-add { grid-template-columns: 1.2fr .8fr .6fr .6fr; }
+input, select {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 5px;
+  color: var(--cream);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  padding: 10px 12px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--amber); border-style: solid; }
+select option { background: var(--card2); }
+.btn-sm {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-sm:hover { border-color: var(--amber); color: var(--amber); }
+.btn-save {
+  width: 100%;
+  background: var(--amber);
+  border: none;
+  border-radius: 7px;
+  color: #1a1612;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-save:hover { background: #d4b87e; }
+.cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) {
+  .cards-grid { grid-template-columns: 1fr; }
+  .field-row, .field-row.stock-add { grid-template-columns: 1fr; }
+  .main-nav { grid-template-columns: 1fr 1fr; }
+  .vault-banner { flex-direction: column; align-items: flex-start; }
+}
+.item-list { display: flex; flex-direction: column; gap: 10px; }
+.item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.item.overdue { border-color: rgba(200,112,96,.65); }
+.item.today { border-color: rgba(200,169,110,.55); }
+.item.done { opacity: .55; }
+.check {
+  width: 18px; height: 18px; border-radius: 4px;
+  border: 1px solid var(--border2); background: transparent; flex-shrink: 0;
+  cursor: pointer; margin-top: 2px; position: relative;
+}
+.check.checked { background: var(--amber-bg); border-color: var(--amber-dim); }
+.check.checked::after {
+  content: "✓"; color: var(--amber); font-size: 12px;
+  position: absolute; left: 4px; top: 0px;
+}
+.item-main { flex: 1; min-width: 0; }
+.item-title { font-size: 12px; color: var(--cream); line-height: 1.45; margin-bottom: 3px; }
+.item-sub { font-size: 10px; color: var(--muted); line-height: 1.45; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
+.badge {
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); background: var(--bg2); border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+}
+.badge.amber { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-bg); }
+.badge.red { color: var(--red); border-color: rgba(200,112,96,.5); background: rgba(200,112,96,.08); }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.filter-select {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.06em; padding: 7px 10px; cursor: pointer; outline: none;
+  flex: 1; min-width: 120px;
+}
+.filter-select:focus { border-color: var(--amber); }
+.split { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.stock-row, .shopping-row {
+  display: grid; gap: 10px; align-items: center; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; margin-bottom: 10px;
+}
+.stock-row { grid-template-columns: 1.2fr .8fr .5fr .7fr auto; }
+.shopping-row { grid-template-columns: auto 1.2fr .8fr .7fr auto; }
+@media (max-width: 760px) { .stock-row, .shopping-row { grid-template-columns: 1fr; } }
+.stepper { display: inline-flex; align-items: center; gap: 6px; }
+.stepper button {
+  width: 24px; height: 24px; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted); border-radius: 4px; cursor: pointer;
+}
+.stepper span { min-width: 20px; text-align: center; font-size: 12px; }
+.muted { color: var(--muted); }
+.empty {
+  text-align: center; color: var(--faint); font-size: 11px;
+  letter-spacing: 0.08em; padding: 28px 0 8px;
+}
+.panel { display:none; }
+.panel.active { display:block; }
+.toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--card2); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 12px 20px;
+  font-size: 11px; letter-spacing: 0.06em; color: var(--cream);
+  transition: transform 0.3s ease; z-index: 100; white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.note { font-size: 10px; line-height: 1.5; color: var(--faint); margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="wordmark">the <em>keep</em></div>
+  <div class="site-status"><div class="status-dot"></div>household rhythms</div>
+</header>
+
+<nav class="main-nav">
+  <button class="nav-btn active" onclick="switchPanel('today')" id="navToday">today</button>
+  <button class="nav-btn" onclick="switchPanel('routines')" id="navRoutines">routines</button>
+  <button class="nav-btn" onclick="switchPanel('stock')" id="navStock">stock</button>
+  <button class="nav-btn" onclick="switchPanel('shopping')" id="navShopping">shopping</button>
+</nav>
+
+<div class="vault-banner">
+  <div>
+    <div style="color:var(--muted);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px;">overview</div>
+    <div class="vault-name">a household operating tool for cleaning, upkeep, and stocking</div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><strong id="kpiToday">0</strong><span>due today</span></div>
+    <div class="kpi"><strong id="kpiOverdue">0</strong><span>overdue</span></div>
+    <div class="kpi"><strong id="kpiLow">0</strong><span>low stock</span></div>
+    <div class="kpi"><strong id="kpiShopping">0</strong><span>shopping</span></div>
+  </div>
+</div>
+
+<div class="panel active" id="panelToday">
+  <div class="cards-grid">
+    <section class="section"><div class="section-label">overdue</div><div id="overdueList" class="item-list"></div></section>
+    <section class="section"><div class="section-label">due today</div><div id="todayList" class="item-list"></div></section>
+  </div>
+  <section class="section"><div class="section-label">upcoming</div><div id="upcomingList" class="item-list"></div></section>
+  <div class="cards-grid">
+    <section class="section"><div class="section-label">low stock</div><div id="lowStockList" class="item-list"></div></section>
+    <section class="section"><div class="section-label">shopping list</div><div id="todayShoppingList" class="item-list"></div></section>
+  </div>
+</div>
+
+<div class="panel" id="panelRoutines">
+  <section class="section">
+    <div class="section-label">add routine</div>
+    <div class="field-row">
+      <input id="newRoutineTitle" type="text" placeholder="task title">
+      <input id="newRoutineArea" type="text" placeholder="area">
+      <select id="newRoutineFrequency">
+        <option value="daily">daily</option>
+        <option value="weekly">weekly</option>
+        <option value="biweekly">biweekly</option>
+        <option value="monthly">monthly</option>
+        <option value="quarterly">quarterly</option>
+        <option value="seasonal">seasonal</option>
+      </select>
+    </div>
+    <button class="btn-save" onclick="addRoutine()">save routine</button>
+    <div class="note">Seeded from your house cleaning CSV and staggered with starter due dates so the dashboard is usable immediately.</div>
+  </section>
+  <section class="section">
+    <div class="section-label">browse routines</div>
+    <div class="filter-bar">
+      <select class="filter-select" id="routineAreaFilter" onchange="renderRoutines()"></select>
+      <select class="filter-select" id="routineFrequencyFilter" onchange="renderRoutines()">
+        <option value="all">all frequencies</option>
+        <option value="daily">daily</option>
+        <option value="weekly">weekly</option>
+        <option value="biweekly">biweekly</option>
+        <option value="monthly">monthly</option>
+        <option value="quarterly">quarterly</option>
+        <option value="seasonal">seasonal</option>
+      </select>
+    </div>
+    <div id="routineList"></div>
+  </section>
+</div>
+
+<div class="panel" id="panelStock">
+  <div class="split">
+    <section class="section"><div class="section-label">stock</div><div id="stockList"></div></section>
+    <section class="section">
+      <div class="section-label">add item</div>
+      <div class="field-row stock-add">
+        <input id="newStockName" type="text" placeholder="item">
+        <input id="newStockLocation" type="text" placeholder="location">
+        <input id="newStockPar" type="number" min="0" placeholder="par">
+        <input id="newStockCurrent" type="number" min="0" placeholder="current">
+      </div>
+      <button class="btn-save" onclick="addStockItem()">save item</button>
+    </section>
+  </div>
+</div>
+
+<div class="panel" id="panelShopping">
+  <div class="split">
+    <section class="section"><div class="section-label">shopping list</div><div id="shoppingList"></div></section>
+    <section class="section">
+      <div class="section-label">add item</div>
+      <div class="field-row">
+        <input id="newShoppingName" type="text" placeholder="item">
+        <input id="newShoppingCategory" type="text" placeholder="category">
+        <input id="newShoppingStore" type="text" placeholder="store">
+      </div>
+      <button class="btn-save" onclick="addShoppingItem()">add to list</button>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SEED = {
+  "meta": {
+    "name": "The Keep",
+    "version": 1,
+    "created_from": "House Cleaning.csv",
+    "created_at": "2026-03-12"
+  },
+  "routines": [
+    {
+      "id": "r001",
+      "title": "Sweep floors",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r002",
+      "title": "Declutter surfaces and storage",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r003",
+      "title": "Dust shelves and storage bins",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r004",
+      "title": "Vacuum baseboards and corners",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-02",
+      "notes": ""
+    },
+    {
+      "id": "r005",
+      "title": "Check for moisture or mildew",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r006",
+      "title": "Deep clean floors and walls",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2025-12-02",
+      "notes": ""
+    },
+    {
+      "id": "r007",
+      "title": "Seasonal declutter and donate",
+      "area": "Basement",
+      "category": "cleaning",
+      "frequency": "seasonal",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r008",
+      "title": "Make the bed",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r009",
+      "title": "Put away clothes",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r010",
+      "title": "Dust furniture and light fixtures",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-04",
+      "notes": ""
+    },
+    {
+      "id": "r011",
+      "title": "Vacuum floor and under bed",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r012",
+      "title": "Change and launder sheets",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "biweekly",
+      "interval": 2,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r013",
+      "title": "Launder pillow protectors and mattress pad",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r014",
+      "title": "Vacuum baseboards and windowsills",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r015",
+      "title": "Rotate or flip mattress",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r016",
+      "title": "Vacuum mattress and bed frame crevices",
+      "area": "Master Bedroom",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-02",
+      "notes": ""
+    },
+    {
+      "id": "r017",
+      "title": "Make the bed",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r018",
+      "title": "Put away clothes and toys",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r019",
+      "title": "Dust furniture and light fixtures",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r020",
+      "title": "Vacuum floor and under bed",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r021",
+      "title": "Change and launder sheets",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "biweekly",
+      "interval": 2,
+      "day_of_week": null,
+      "last_completed": "2026-03-02",
+      "notes": ""
+    },
+    {
+      "id": "r022",
+      "title": "Wipe mirrors and smudges",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "biweekly",
+      "interval": 2,
+      "day_of_week": null,
+      "last_completed": "2026-02-24",
+      "notes": ""
+    },
+    {
+      "id": "r023",
+      "title": "Sanitize high touch surfaces",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r024",
+      "title": "Launder pillow protectors and mattress pad",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-02",
+      "notes": ""
+    },
+    {
+      "id": "r025",
+      "title": "Toy rotation and donate",
+      "area": "Kids Bedroom",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r026",
+      "title": "Dust desk shelves and electronics",
+      "area": "Office or Guest Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-04",
+      "notes": ""
+    },
+    {
+      "id": "r027",
+      "title": "Vacuum or mop floor",
+      "area": "Office or Guest Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r028",
+      "title": "Empty trash and shred or recycle paper",
+      "area": "Office or Guest Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r029",
+      "title": "Wipe keyboard mouse and switch plates",
+      "area": "Office or Guest Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r030",
+      "title": "Wash guest bedding",
+      "area": "Office or Guest Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r031",
+      "title": "Declutter papers and cables",
+      "area": "Office or Guest Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r032",
+      "title": "Quick tidy books remotes blankets",
+      "area": "Living Room",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r033",
+      "title": "Dust surfaces and light fixtures",
+      "area": "Living Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r034",
+      "title": "Vacuum floors and rugs",
+      "area": "Living Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-04",
+      "notes": ""
+    },
+    {
+      "id": "r035",
+      "title": "Vacuum upholstery and cushions",
+      "area": "Living Room",
+      "category": "cleaning",
+      "frequency": "biweekly",
+      "interval": 2,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r036",
+      "title": "Wipe mirrors and glass doors",
+      "area": "Living Room",
+      "category": "cleaning",
+      "frequency": "biweekly",
+      "interval": 2,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r037",
+      "title": "Vacuum baseboards and windowsills",
+      "area": "Living Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r038",
+      "title": "Wipe table and chairs",
+      "area": "Dining Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-04",
+      "notes": ""
+    },
+    {
+      "id": "r039",
+      "title": "Dust surfaces and light fixture",
+      "area": "Dining Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r040",
+      "title": "Vacuum or mop floor",
+      "area": "Dining Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r041",
+      "title": "Wipe windows",
+      "area": "Dining Room",
+      "category": "cleaning",
+      "frequency": "biweekly",
+      "interval": 2,
+      "day_of_week": null,
+      "last_completed": "2026-03-02",
+      "notes": ""
+    },
+    {
+      "id": "r042",
+      "title": "Dust chandelier or light fixture",
+      "area": "Dining Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r043",
+      "title": "Vacuum baseboards and windowsills",
+      "area": "Dining Room",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r044",
+      "title": "Wipe counters and sanitize sink",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r045",
+      "title": "Wash dishes or run dishwasher",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r046",
+      "title": "Wipe appliance fronts and cabinet doors",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-04",
+      "notes": ""
+    },
+    {
+      "id": "r047",
+      "title": "Flush kitchen drain with boiling water",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r048",
+      "title": "Vent hood wipe exterior",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r049",
+      "title": "Vacuum or mop floor",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r050",
+      "title": "Refrigerator quick purge and wipe shelves",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r051",
+      "title": "Wash vent hood filters",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r052",
+      "title": "Wipe inside and outside of trash and recycling bins",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-02",
+      "notes": ""
+    },
+    {
+      "id": "r053",
+      "title": "Scrub grout and backsplash",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r054",
+      "title": "Organize and wipe pantry shelves",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r055",
+      "title": "Deep clean oven",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r056",
+      "title": "Wipe kitchen ceiling and cabinet interiors",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r057",
+      "title": "Deep clean refrigerator and freezer",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-01-21",
+      "notes": ""
+    },
+    {
+      "id": "r058",
+      "title": "Pull out and clean behind or beneath appliances",
+      "area": "Kitchen",
+      "category": "cleaning",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2025-12-02",
+      "notes": ""
+    },
+    {
+      "id": "r059",
+      "title": "Clear lint trap and wipe machines",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r060",
+      "title": "Vacuum or mop floor",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r061",
+      "title": "Wipe sink counter and detergent spills",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r062",
+      "title": "Wipe inside and outside of trash and recycling bins",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-02-05",
+      "notes": ""
+    },
+    {
+      "id": "r063",
+      "title": "Wipe doors trim and switch plates",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "monthly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r064",
+      "title": "Wash filter on washing machine",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-02-20",
+      "notes": ""
+    },
+    {
+      "id": "r065",
+      "title": "Inspect hoses and connections",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2026-01-21",
+      "notes": ""
+    },
+    {
+      "id": "r066",
+      "title": "Clean dryer vent and exhaust",
+      "area": "Laundry Room",
+      "category": "laundry",
+      "frequency": "quarterly",
+      "interval": 3,
+      "day_of_week": null,
+      "last_completed": "2025-12-02",
+      "notes": ""
+    },
+    {
+      "id": "r067",
+      "title": "Wipe fingerprints from glass and screens",
+      "area": "Kids Game Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r068",
+      "title": "Dust shelves consoles and TV stand",
+      "area": "Kids Game Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r069",
+      "title": "Vacuum or mop floor",
+      "area": "Kids Game Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    },
+    {
+      "id": "r070",
+      "title": "Sanitize high touch surfaces",
+      "area": "Kids Game Room",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-04",
+      "notes": ""
+    },
+    {
+      "id": "r071",
+      "title": "Wipe counters and sink",
+      "area": "Bathrooms",
+      "category": "cleaning",
+      "frequency": "daily",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-12",
+      "notes": ""
+    },
+    {
+      "id": "r072",
+      "title": "Clean toilets tubs showers and sinks",
+      "area": "Bathrooms",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-10",
+      "notes": ""
+    },
+    {
+      "id": "r073",
+      "title": "Wash bath mats and towels",
+      "area": "Bathrooms",
+      "category": "cleaning",
+      "frequency": "weekly",
+      "interval": 1,
+      "day_of_week": null,
+      "last_completed": "2026-03-07",
+      "notes": ""
+    }
+  ],
+  "stock": [
+    {
+      "id": "s001",
+      "name": "Dish soap",
+      "location": "Kitchen",
+      "category": "cleaning",
+      "par_level": 2,
+      "current_level": 1,
+      "reorder_threshold": 1
+    },
+    {
+      "id": "s002",
+      "name": "Dishwasher tabs",
+      "location": "Kitchen",
+      "category": "cleaning",
+      "par_level": 1,
+      "current_level": 0,
+      "reorder_threshold": 0
+    },
+    {
+      "id": "s003",
+      "name": "Paper towels",
+      "location": "Pantry",
+      "category": "paper",
+      "par_level": 6,
+      "current_level": 2,
+      "reorder_threshold": 2
+    },
+    {
+      "id": "s004",
+      "name": "Toilet paper",
+      "location": "Bathroom",
+      "category": "paper",
+      "par_level": 12,
+      "current_level": 4,
+      "reorder_threshold": 4
+    },
+    {
+      "id": "s005",
+      "name": "Laundry detergent",
+      "location": "Laundry Room",
+      "category": "laundry",
+      "par_level": 2,
+      "current_level": 1,
+      "reorder_threshold": 1
+    },
+    {
+      "id": "s006",
+      "name": "All-purpose cleaner",
+      "location": "Laundry Room",
+      "category": "cleaning",
+      "par_level": 2,
+      "current_level": 1,
+      "reorder_threshold": 1
+    },
+    {
+      "id": "s007",
+      "name": "Sponges",
+      "location": "Kitchen",
+      "category": "cleaning",
+      "par_level": 4,
+      "current_level": 1,
+      "reorder_threshold": 1
+    },
+    {
+      "id": "s008",
+      "name": "Trash bags",
+      "location": "Laundry Room",
+      "category": "household",
+      "par_level": 2,
+      "current_level": 1,
+      "reorder_threshold": 1
+    }
+  ],
+  "shopping": [
+    {
+      "id": "sh001",
+      "name": "Dishwasher tabs",
+      "category": "cleaning",
+      "store": "",
+      "checked": false,
+      "source": "stock"
+    },
+    {
+      "id": "sh002",
+      "name": "Paper towels",
+      "category": "paper",
+      "store": "",
+      "checked": false,
+      "source": "stock"
+    }
+  ]
+};
+const STORAGE_KEY = "the_keep_state_v1";
+let state = loadState();
+
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try { return JSON.parse(saved); } catch (e) {}
+  }
+  return JSON.parse(JSON.stringify(SEED));
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function todayStr() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,10);
+}
+function addDays(str, days) {
+  const d = new Date(str + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+function diffDays(a, b) {
+  const da = new Date(a + "T12:00:00");
+  const db = new Date(b + "T12:00:00");
+  return Math.round((da - db) / 86400000);
+}
+function cadenceDays(freq) {
+  if (freq === "daily") return 1;
+  if (freq === "weekly") return 7;
+  if (freq === "biweekly") return 14;
+  if (freq === "monthly") return 30;
+  if (freq === "quarterly") return 90;
+  if (freq === "seasonal") return 120;
+  return 30;
+}
+function nextDue(routine) { return addDays(routine.last_completed || todayStr(), cadenceDays(routine.frequency)); }
+function routineStatus(routine) {
+  const due = nextDue(routine);
+  const today = todayStr();
+  const delta = diffDays(due, today);
+  if (delta < 0) return { due, state: "overdue", days: Math.abs(delta) };
+  if (delta === 0) return { due, state: "today", days: 0 };
+  return { due, state: "upcoming", days: delta };
+}
+function completeRoutine(id) {
+  const item = state.routines.find(r => r.id === id);
+  if (!item) return;
+  item.last_completed = todayStr();
+  saveState();
+  renderAll();
+  showToast("routine completed");
+}
+function toggleShopping(id) {
+  const item = state.shopping.find(s => s.id === id);
+  if (!item) return;
+  item.checked = !item.checked;
+  saveState();
+  renderAll();
+}
+function removeShopping(id) {
+  state.shopping = state.shopping.filter(s => s.id !== id);
+  saveState();
+  renderAll();
+  showToast("item removed");
+}
+function adjustStock(id, step) {
+  const item = state.stock.find(s => s.id === id);
+  if (!item) return;
+  item.current_level = Math.max(0, Number(item.current_level || 0) + step);
+  saveState();
+  renderAll();
+}
+function addStockToShopping(id) {
+  const item = state.stock.find(s => s.id === id);
+  if (!item) return;
+  const exists = state.shopping.some(s => s.name.toLowerCase() === item.name.toLowerCase() && !s.checked);
+  if (!exists) {
+    state.shopping.unshift({
+      id: "sh" + Date.now(),
+      name: item.name,
+      category: item.category || "household",
+      store: "",
+      checked: false,
+      source: "stock"
+    });
+    saveState();
+    renderAll();
+    showToast("added to shopping");
+  } else {
+    showToast("already on shopping list");
+  }
+}
+function addRoutine() {
+  const title = document.getElementById('newRoutineTitle').value.trim();
+  const area = document.getElementById('newRoutineArea').value.trim();
+  const frequency = document.getElementById('newRoutineFrequency').value;
+  if (!title || !area) return showToast("enter task and area");
+  state.routines.unshift({
+    id: "r" + Date.now(),
+    title, area, category: "cleaning", frequency, interval: 1, day_of_week: null,
+    last_completed: todayStr(), notes: ""
+  });
+  document.getElementById('newRoutineTitle').value = "";
+  document.getElementById('newRoutineArea').value = "";
+  saveState();
+  renderAll();
+  showToast("routine added");
+}
+function addStockItem() {
+  const name = document.getElementById('newStockName').value.trim();
+  const location = document.getElementById('newStockLocation').value.trim();
+  const par = Number(document.getElementById('newStockPar').value || 0);
+  const current = Number(document.getElementById('newStockCurrent').value || 0);
+  if (!name || !location) return showToast("enter item and location");
+  state.stock.unshift({
+    id: "s" + Date.now(), name, location, category: "household",
+    par_level: par, current_level: current, reorder_threshold: Math.max(0, Math.min(par, 1))
+  });
+  ['newStockName','newStockLocation','newStockPar','newStockCurrent'].forEach(id => document.getElementById(id).value = "");
+  saveState();
+  renderAll();
+  showToast("stock item added");
+}
+function addShoppingItem() {
+  const name = document.getElementById('newShoppingName').value.trim();
+  const category = document.getElementById('newShoppingCategory').value.trim() || "household";
+  const store = document.getElementById('newShoppingStore').value.trim();
+  if (!name) return showToast("enter item");
+  state.shopping.unshift({ id: "sh" + Date.now(), name, category, store, checked: false, source: "manual" });
+  ['newShoppingName','newShoppingCategory','newShoppingStore'].forEach(id => document.getElementById(id).value = "");
+  saveState();
+  renderAll();
+  showToast("shopping item added");
+}
+function switchPanel(name) {
+  ['today','routines','stock','shopping'].forEach(n => {
+    document.getElementById('panel' + n.charAt(0).toUpperCase() + n.slice(1)).classList.toggle('active', n === name);
+    document.getElementById('nav' + n.charAt(0).toUpperCase() + n.slice(1)).classList.toggle('active', n === name);
+  });
+}
+function renderKPIs() {
+  const statuses = state.routines.map(r => routineStatus(r));
+  const low = state.stock.filter(s => Number(s.current_level) <= Number(s.reorder_threshold)).length;
+  document.getElementById('kpiToday').textContent = statuses.filter(s => s.state === 'today').length;
+  document.getElementById('kpiOverdue').textContent = statuses.filter(s => s.state === 'overdue').length;
+  document.getElementById('kpiLow').textContent = low;
+  document.getElementById('kpiShopping').textContent = state.shopping.filter(s => !s.checked).length;
+}
+function renderRoutineItem(r) {
+  const stat = routineStatus(r);
+  const dueLabel = stat.state === 'overdue' ? `overdue ${stat.days}d` : (stat.state === 'today' ? 'due today' : `due in ${stat.days}d`);
+  return `
+    <div class="item ${stat.state}">
+      <button class="check" onclick="completeRoutine('${r.id}')" aria-label="complete"></button>
+      <div class="item-main">
+        <div class="item-title">${escapeHtml(r.title)}</div>
+        <div class="item-sub">${escapeHtml(r.area)} · ${r.frequency} · next ${stat.due}</div>
+      </div>
+      <div class="badges">
+        <span class="badge ${stat.state === 'overdue' ? 'red' : (stat.state === 'today' ? 'amber' : '')}">${dueLabel}</span>
+      </div>
+    </div>`;
+}
+function renderToday() {
+  const statuses = state.routines.map(r => ({ ...r, _status: routineStatus(r) }));
+  const overdue = statuses.filter(r => r._status.state === 'overdue').sort((a,b) => b._status.days - a._status.days);
+  const dueToday = statuses.filter(r => r._status.state === 'today').sort((a,b) => a.area.localeCompare(b.area));
+  const upcoming = statuses.filter(r => r._status.state === 'upcoming').sort((a,b) => a._status.days - b._status.days).slice(0, 14);
+
+  document.getElementById('overdueList').innerHTML = overdue.length ? overdue.slice(0,12).map(renderRoutineItem).join('') : '<div class="empty">nothing overdue</div>';
+  document.getElementById('todayList').innerHTML = dueToday.length ? dueToday.slice(0,12).map(renderRoutineItem).join('') : '<div class="empty">nothing due today</div>';
+  document.getElementById('upcomingList').innerHTML = upcoming.length ? upcoming.map(renderRoutineItem).join('') : '<div class="empty">nothing upcoming</div>';
+
+  const low = state.stock.filter(s => Number(s.current_level) <= Number(s.reorder_threshold));
+  document.getElementById('lowStockList').innerHTML = low.length ? low.map(item => `
+    <div class="item">
+      <div class="item-main">
+        <div class="item-title">${escapeHtml(item.name)}</div>
+        <div class="item-sub">${escapeHtml(item.location)} · current ${item.current_level} / par ${item.par_level}</div>
+      </div>
+      <div class="badges">
+        <span class="badge red">low</span>
+        <button class="btn-sm" onclick="addStockToShopping('${item.id}')">add</button>
+      </div>
+    </div>`).join('') : '<div class="empty">nothing low</div>';
+
+  const shopping = state.shopping.filter(s => !s.checked).slice(0, 8);
+  document.getElementById('todayShoppingList').innerHTML = shopping.length ? shopping.map(s => `
+    <div class="item">
+      <button class="check ${s.checked ? 'checked' : ''}" onclick="toggleShopping('${s.id}')"></button>
+      <div class="item-main">
+        <div class="item-title">${escapeHtml(s.name)}</div>
+        <div class="item-sub">${escapeHtml(s.category || 'household')}${s.store ? ' · ' + escapeHtml(s.store) : ''}</div>
+      </div>
+      <div class="badges"><span class="badge">${escapeHtml(s.source || 'manual')}</span></div>
+    </div>`).join('') : '<div class="empty">shopping list is clear</div>';
+}
+function renderRoutines() {
+  const areaFilterEl = document.getElementById('routineAreaFilter');
+  const currentArea = areaFilterEl.value || 'all';
+  const areas = ['all', ...new Set(state.routines.map(r => r.area).sort((a,b) => a.localeCompare(b)))];
+  areaFilterEl.innerHTML = areas.map(a => `<option value="${escapeAttr(a)}" ${a===currentArea?'selected':''}>${a==='all'?'all areas':escapeHtml(a)}</option>`).join('');
+  const areaFilter = areaFilterEl.value || 'all';
+  const freqFilter = document.getElementById('routineFrequencyFilter').value;
+
+  let items = [...state.routines];
+  if (areaFilter !== 'all') items = items.filter(r => r.area === areaFilter);
+  if (freqFilter !== 'all') items = items.filter(r => r.frequency === freqFilter);
+  items.sort((a,b) => {
+    const sa = routineStatus(a), sb = routineStatus(b);
+    const rank = { overdue: 0, today: 1, upcoming: 2 };
+    return rank[sa.state] - rank[sb.state] || a.area.localeCompare(b.area) || a.title.localeCompare(b.title);
+  });
+  document.getElementById('routineList').innerHTML = items.length ? items.map(renderRoutineItem).join('') : '<div class="empty">no routines match these filters</div>';
+}
+function renderStock() {
+  const items = [...state.stock].sort((a,b) => {
+    const aLow = Number(a.current_level) <= Number(a.reorder_threshold);
+    const bLow = Number(b.current_level) <= Number(b.reorder_threshold);
+    return (aLow === bLow ? 0 : aLow ? -1 : 1) || a.location.localeCompare(b.location) || a.name.localeCompare(b.name);
+  });
+  document.getElementById('stockList').innerHTML = items.length ? items.map(item => {
+    const low = Number(item.current_level) <= Number(item.reorder_threshold);
+    return `
+      <div class="stock-row">
+        <div>
+          <div class="item-title">${escapeHtml(item.name)}</div>
+          <div class="item-sub">${escapeHtml(item.location)} · par ${item.par_level}</div>
+        </div>
+        <div><span class="badge ${low ? 'red' : ''}">${low ? 'low stock' : 'stocked'}</span></div>
+        <div class="stepper">
+          <button onclick="adjustStock('${item.id}', -1)">−</button>
+          <span>${item.current_level}</span>
+          <button onclick="adjustStock('${item.id}', 1)">+</button>
+        </div>
+        <div class="muted">threshold ${item.reorder_threshold}</div>
+        <button class="btn-sm" onclick="addStockToShopping('${item.id}')">shop</button>
+      </div>`;
+  }).join('') : '<div class="empty">no stock items yet</div>';
+}
+function renderShopping() {
+  const items = [...state.shopping].sort((a,b) => Number(a.checked) - Number(b.checked) || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  document.getElementById('shoppingList').innerHTML = items.length ? items.map(item => `
+    <div class="shopping-row ${item.checked ? 'done' : ''}">
+      <button class="check ${item.checked ? 'checked' : ''}" onclick="toggleShopping('${item.id}')"></button>
+      <div>
+        <div class="item-title">${escapeHtml(item.name)}</div>
+        <div class="item-sub">${escapeHtml(item.category || 'household')}${item.store ? ' · ' + escapeHtml(item.store) : ''}</div>
+      </div>
+      <div><span class="badge">${escapeHtml(item.source || 'manual')}</span></div>
+      <div class="muted">${item.checked ? 'checked' : 'to buy'}</div>
+      <button class="btn-sm" onclick="removeShopping('${item.id}')">remove</button>
+    </div>`).join('') : '<div class="empty">shopping list is empty</div>';
+}
+function escapeHtml(str) { return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(str) { return escapeHtml(str); }
+function renderAll() { renderKPIs(); renderToday(); renderRoutines(); renderStock(); renderShopping(); }
+renderAll();
+</script>
+</body>
+</html>
