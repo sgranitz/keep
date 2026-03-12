@@ -1,97 +1,1297 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Keep</title>
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>the keep</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-
 <style>
-body{
-background:#1a1612;
-color:#e8dcc8;
-font-family:"DM Mono",monospace;
-max-width:1100px;
-margin:auto;
-padding:40px 20px;
+:root {
+  --bg:        #1a1612;
+  --bg2:       #221e19;
+  --card:      #2a2420;
+  --card2:     #322c26;
+  --border:    #3d3630;
+  --border2:   #4a433b;
+  --amber:     #c8a96e;
+  --amber-dim: #9a7e4f;
+  --amber-bg:  rgba(200,169,110,0.08);
+  --cream:     #e8dcc8;
+  --muted:     #8a7e6e;
+  --faint:     #5a5040;
+  --red:       #c87060;
+  --green:     #70a880;
+  --blue:      #6090b0;
 }
 
-h1{
-font-family:"Playfair Display",serif;
-font-weight:400;
-color:#c8a96e;
-margin-bottom:20px;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--cream);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  padding: 24px 16px 60px;
+  max-width: 1180px;
+  margin: 0 auto;
 }
 
-button{
-background:#c8a96e;
-border:none;
-padding:10px 16px;
-cursor:pointer;
-margin-top:12px;
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.card{
-background:#2a2420;
-padding:16px;
-border-radius:8px;
-margin-bottom:12px;
+.wordmark {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--cream);
+  letter-spacing: -0.02em;
+}
+.wordmark em { font-style: italic; color: var(--amber); }
+
+.app-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.main-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 20px;
+  gap: 4px;
+}
+
+.nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 12px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-btn.active {
+  background: var(--card2);
+  color: var(--cream);
+  border: 1px solid var(--border2);
+}
+
+.overview {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 22px;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.overview-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.overview-copy {
+  font-size: 13px;
+  color: var(--amber);
+  line-height: 1.5;
+}
+
+.overview-stats {
+  display: flex;
+  justify-content: flex-end;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.overview-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.overview-stat strong {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  color: var(--cream);
+  font-weight: 400;
+}
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.section-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.stack { display: grid; gap: 14px; }
+
+.task-row,
+.stock-row,
+.shop-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.task-head,
+.stock-head,
+.shop-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.task-title,
+.stock-title,
+.shop-title {
+  font-size: 13px;
+  color: var(--cream);
+  line-height: 1.4;
+}
+
+.task-sub,
+.stock-sub,
+.shop-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.badge {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.badge.low   { color: var(--red); border-color: var(--red); }
+.badge.due   { color: var(--amber); border-color: var(--amber-dim); }
+.badge.ok    { color: var(--muted); }
+.badge.done  { color: var(--green); border-color: var(--green); }
+.badge.soon  { color: var(--blue); border-color: var(--blue); }
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.btn-inline,
+.btn-primary,
+.input,
+.select,
+.number-input,
+.textarea {
+  font-family: 'DM Mono', monospace;
+}
+
+.btn-inline {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-inline:hover { border-color: var(--amber); color: var(--amber); }
+.btn-inline.danger:hover { border-color: var(--red); color: var(--red); }
+
+.btn-primary {
+  width: 100%;
+  background: var(--amber);
+  border: none;
+  border-radius: 7px;
+  color: #1a1612;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-primary:hover { background: #d4b87e; }
+
+.field { margin-bottom: 12px; }
+
+.field label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.input,
+.select,
+.number-input,
+.textarea {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 5px;
+  color: var(--cream);
+  font-size: 13px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus,
+.select:focus,
+.number-input:focus,
+.textarea:focus {
+  border-color: var(--amber);
+  border-style: solid;
+}
+
+.select option { background: var(--card2); }
+.textarea { resize: vertical; min-height: 88px; line-height: 1.5; }
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.task-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--amber);
+  flex-shrink: 0;
+}
+
+.stock-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.stock-qty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qty-value {
+  min-width: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--cream);
+}
+
+.stock-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.empty {
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 28px 12px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.filter-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.filter-btn.active {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: var(--amber-bg);
+}
+
+.loading {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 18px 2px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--cream);
+  transition: transform 0.3s ease;
+  z-index: 100;
+  white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.success { border-color: var(--green); color: var(--green); }
+.toast.error { border-color: var(--red); color: var(--red); }
+
+@media (max-width: 980px) {
+  .two-col,
+  .overview {
+    grid-template-columns: 1fr;
+  }
+  .overview-stats {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .main-nav {
+    grid-template-columns: 1fr 1fr;
+  }
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 </head>
-
 <body>
 
-<h1>the keep</h1>
+<header class="header">
+  <div class="wordmark">the <em>keep</em></div>
+  <div class="app-status">
+    <div class="status-dot"></div>
+    <span>household rhythms</span>
+  </div>
+</header>
 
-<button onclick="loadRoutines()">Load Routines</button>
+<nav class="main-nav">
+  <button class="nav-btn active" data-panel="today">today</button>
+  <button class="nav-btn" data-panel="routines">routines</button>
+  <button class="nav-btn" data-panel="stock">stock</button>
+  <button class="nav-btn" data-panel="shopping">shopping</button>
+</nav>
 
-<div id="routines"></div>
+<div class="overview">
+  <div>
+    <div class="overview-label">overview</div>
+    <div class="overview-copy">a household operating tool for cleaning, upkeep, and stocking</div>
+  </div>
+  <div class="overview-stats" id="overviewStats"></div>
+</div>
+
+<div id="panel-today" class="panel active"></div>
+<div id="panel-routines" class="panel"></div>
+<div id="panel-stock" class="panel"></div>
+<div id="panel-shopping" class="panel"></div>
+
+<div class="toast" id="toast"></div>
 
 <script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+const SUPABASE_URL = "https://xpnznomjwzvrneulfmaa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_BF31unuVo4QhL6yYwBLYGA_W-bu2yC6";
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const SUPABASE_URL = "https://xpnznomjwzvrneulfmaa.supabase.co"
-const SUPABASE_KEY = "sb_publishable_BF31unuVo4QhL6yYwBLYGA_W-bu2yC6"
+const ROOMS = [
+  "Kitchen",
+  "Dining Room",
+  "Living Room",
+  "Main Bedroom",
+  "Office",
+  "Laundry Room",
+  "Basement",
+  "Upstairs",
+  "Outside"
+];
 
-const db = createClient(SUPABASE_URL, SUPABASE_KEY)
+let appData = {
+  routines: [],
+  stock: [],
+  shopping: []
+};
 
-async function loadRoutines(){
+let filters = {
+  today: "All",
+  routines: "All",
+  stock: "All",
+  shopping: "All"
+};
 
-const container = document.getElementById("routines")
-container.innerHTML="Loading..."
+let toastTimer = null;
+let isLoading = true;
 
-const { data, error } = await db
-.from("routines")
-.select("*")
-.order("room")
+document.querySelectorAll(".nav-btn").forEach(btn => {
+  btn.addEventListener("click", () => switchPanel(btn.dataset.panel));
+});
 
-if(error){
-container.innerHTML = "Error loading routines"
-console.error(error)
-return
+window.setRoomFilter = setRoomFilter;
+window.addRoutine = addRoutine;
+window.completeRoutine = completeRoutine;
+window.deleteRoutine = deleteRoutine;
+window.addStockItem = addStockItem;
+window.adjustStock = adjustStock;
+window.deleteStockItem = deleteStockItem;
+window.addStockToShopping = addStockToShopping;
+window.addShoppingItem = addShoppingItem;
+window.toggleShopping = toggleShopping;
+window.deleteShoppingItem = deleteShoppingItem;
+
+init();
+
+async function init() {
+  renderAll();
+  await loadAllFromSupabase();
+  renderAll();
 }
 
-container.innerHTML=""
+async function loadAllFromSupabase() {
+  isLoading = true;
+  renderAll();
 
-data.forEach(r=>{
-const el=document.createElement("div")
-el.className="card"
-el.innerHTML=`
-<strong>${r.title}</strong><br>
-Room: ${r.room}<br>
-Frequency: ${r.frequency}
-`
-container.appendChild(el)
-})
+  const [routinesRes, stockRes, shoppingRes] = await Promise.all([
+    db.from("routines").select("*").order("room").order("title"),
+    db.from("stock_items").select("*").order("room").order("name"),
+    db.from("shopping_items").select("*").order("checked").order("room").order("name")
+  ]);
 
+  if (routinesRes.error || stockRes.error || shoppingRes.error) {
+    console.error(routinesRes.error || stockRes.error || shoppingRes.error);
+    showToast("failed to load data", "error");
+  } else {
+    appData.routines = routinesRes.data || [];
+    appData.stock = stockRes.data || [];
+    appData.shopping = shoppingRes.data || [];
+  }
+
+  isLoading = false;
 }
 
-window.loadRoutines = loadRoutines
+function switchPanel(name) {
+  document.querySelectorAll(".nav-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.panel === name);
+  });
+  document.querySelectorAll(".panel").forEach(panel => {
+    panel.classList.toggle("active", panel.id === `panel-${name}`);
+  });
+}
 
+function filterByRoom(items, panelName) {
+  const room = filters[panelName];
+  if (!room || room === "All") return items;
+  return items.filter(x => x.room === room);
+}
+
+function renderRoomFilters(panelName) {
+  const values = ["All", ...ROOMS];
+  return `
+    <div class="filter-row">
+      ${values.map(room => `
+        <button class="filter-btn ${filters[panelName] === room ? "active" : ""}" onclick="setRoomFilter('${panelName}', '${escapeJs(room)}')">${room}</button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function setRoomFilter(panelName, room) {
+  filters[panelName] = room;
+  renderAll();
+}
+
+function renderAll() {
+  renderOverview();
+  renderToday();
+  renderRoutines();
+  renderStock();
+  renderShopping();
+}
+
+function renderOverview() {
+  const routineStatuses = appData.routines.map(computeRoutineStatus);
+  const dueToday = routineStatuses.filter(r => r.status === "due").length;
+  const overdue = routineStatuses.filter(r => r.status === "overdue").length;
+  const outOfStock = appData.stock.filter(s => Number(s.in_stock) === 0).length;
+  const shopping = appData.shopping.filter(i => !i.checked).length;
+
+  document.getElementById("overviewStats").innerHTML = `
+    <div class="overview-stat"><strong>${dueToday}</strong><span>due today</span></div>
+    <div class="overview-stat"><strong>${overdue}</strong><span>overdue</span></div>
+    <div class="overview-stat"><strong>${outOfStock}</strong><span>out of stock</span></div>
+    <div class="overview-stat"><strong>${shopping}</strong><span>shopping</span></div>
+  `;
+}
+
+function renderToday() {
+  if (isLoading) {
+    document.getElementById("panel-today").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
+  let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
+  enriched = filterByRoom(enriched, "today");
+
+  const overdue = enriched.filter(r => r.status === "overdue");
+  const due = enriched.filter(r => r.status === "due");
+  const upcoming = enriched
+    .filter(r => r.status === "soon" || r.status === "upcoming")
+    .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+    .slice(0, 8);
+
+  const outOfStock = filterByRoom(appData.stock, "today").filter(s => Number(s.in_stock) === 0);
+  const shopping = filterByRoom(appData.shopping, "today").filter(i => !i.checked);
+
+  document.getElementById("panel-today").innerHTML = `
+    ${renderRoomFilters("today")}
+    <div class="two-col">
+      <div>
+        <div class="section">
+          <div class="section-label">overdue</div>
+          <div class="stack">${overdue.length ? overdue.map(renderRoutineRow).join("") : `<div class="empty">nothing overdue</div>`}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">due today</div>
+          <div class="stack">${due.length ? due.map(renderRoutineRow).join("") : `<div class="empty">nothing due today</div>`}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">upcoming</div>
+          <div class="stack">${upcoming.length ? upcoming.map(renderRoutineRow).join("") : `<div class="empty">nothing upcoming</div>`}</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div class="section-label">out of stock</div>
+          <div class="stack">${outOfStock.length ? outOfStock.map(renderStockCardCompact).join("") : `<div class="empty">everything stocked</div>`}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">shopping list</div>
+          <div class="stack">${shopping.length ? shopping.map(renderShoppingRow).join("") : `<div class="empty">shopping list is clear</div>`}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderRoutineRow(r) {
+  const badgeClass =
+    r.status === "overdue" ? "low" :
+    r.status === "due" ? "due" :
+    r.status === "soon" ? "soon" : "ok";
+
+  const badgeText =
+    r.status === "overdue" ? `overdue ${Math.abs(r.daysUntilDue)}d` :
+    r.status === "due" ? "due today" :
+    r.status === "soon" ? `${r.daysUntilDue}d` : r.dueDate;
+
+  return `
+    <div class="task-row">
+      <div class="task-head">
+        <div>
+          <div class="task-check">
+            <input class="checkbox" type="checkbox" onchange="completeRoutine('${r.id}')">
+            <div class="task-title">${escapeHtml(r.title)}</div>
+          </div>
+          <div class="task-sub">${escapeHtml(r.room)} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}</div>
+        </div>
+        <div class="badge ${badgeClass}">${badgeText}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderRoutines() {
+  if (isLoading) {
+    document.getElementById("panel-routines").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
+  let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
+  enriched = filterByRoom(enriched, "routines");
+  enriched.sort((a, b) => a.room.localeCompare(b.room) || a.title.localeCompare(b.title));
+
+  document.getElementById("panel-routines").innerHTML = `
+    ${renderRoomFilters("routines")}
+    <div class="two-col">
+      <div>
+        <div class="section">
+          <div class="section-label">routines</div>
+          <div class="stack">
+            ${enriched.length ? enriched.map(renderRoutineManageRow).join("") : `<div class="empty">no routines in this view</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div class="section-label">add routine</div>
+          <div class="field">
+            <label for="routineTitle">title</label>
+            <input class="input" id="routineTitle" type="text" placeholder="e.g. vacuum living room">
+          </div>
+          <div class="form-grid-2">
+            <div class="field">
+              <label for="routineRoom">room</label>
+              <select class="select" id="routineRoom">
+                ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="routineFrequency">frequency</label>
+              <select class="select" id="routineFrequency">
+                <option value="daily">Daily</option>
+                <option value="weekly" selected>Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="custom">Custom days</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="field">
+              <label for="routineInterval">interval</label>
+              <input class="number-input" id="routineInterval" type="number" min="1" step="1" value="1">
+            </div>
+            <div class="field">
+              <label for="routineLastCompleted">last completed</label>
+              <input class="input" id="routineLastCompleted" type="date" value="${todayISO()}">
+            </div>
+          </div>
+          <div class="field">
+            <label for="routineNotes">notes</label>
+            <textarea class="textarea" id="routineNotes" placeholder="Optional notes..."></textarea>
+          </div>
+          <button class="btn-primary" onclick="addRoutine()">save routine</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderRoutineManageRow(r) {
+  const badgeClass =
+    r.status === "overdue" ? "low" :
+    r.status === "due" ? "due" :
+    r.status === "soon" ? "soon" : "ok";
+
+  const badgeText =
+    r.status === "overdue" ? `overdue ${Math.abs(r.daysUntilDue)}d` :
+    r.status === "due" ? "due today" :
+    r.status === "soon" ? `${r.daysUntilDue}d` : r.dueDate;
+
+  return `
+    <div class="task-row">
+      <div class="task-head">
+        <div>
+          <div class="task-title">${escapeHtml(r.title)}</div>
+          <div class="task-sub">${escapeHtml(r.room)} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}${r.notes ? ` · ${escapeHtml(r.notes)}` : ""}</div>
+        </div>
+        <div class="badge ${badgeClass}">${badgeText}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline" onclick="completeRoutine('${r.id}')">complete</button>
+        <button class="btn-inline danger" onclick="deleteRoutine('${r.id}')">delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderStock() {
+  if (isLoading) {
+    document.getElementById("panel-stock").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
+  let items = filterByRoom(appData.stock, "stock");
+  items.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+
+  document.getElementById("panel-stock").innerHTML = `
+    ${renderRoomFilters("stock")}
+    <div class="two-col">
+      <div>
+        <div class="section">
+          <div class="section-label">stock</div>
+          <div class="stack">
+            ${items.length ? items.map(renderStockManageRow).join("") : `<div class="empty">no stock items in this view</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div class="section-label">add item</div>
+          <div class="field">
+            <label for="stockName">item</label>
+            <input class="input" id="stockName" type="text" placeholder="e.g. paper towels">
+          </div>
+          <div class="form-grid-2">
+            <div class="field">
+              <label for="stockRoom">room</label>
+              <select class="select" id="stockRoom">
+                ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="stockCount">in stock</label>
+              <input class="number-input" id="stockCount" type="number" min="0" step="1" value="1">
+            </div>
+          </div>
+          <button class="btn-primary" onclick="addStockItem()">save item</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderStockCardCompact(item) {
+  const empty = Number(item.in_stock) === 0;
+  return `
+    <div class="stock-row">
+      <div class="stock-head">
+        <div>
+          <div class="stock-title">${escapeHtml(item.name)}</div>
+          <div class="stock-sub">${escapeHtml(item.room)} · in stock ${item.in_stock}</div>
+        </div>
+        <div class="badge ${empty ? "low" : "ok"}">${empty ? "out" : "stocked"}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline" onclick="addStockToShopping('${item.id}')">add to shopping</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderStockManageRow(item) {
+  const empty = Number(item.in_stock) === 0;
+  return `
+    <div class="stock-row">
+      <div class="stock-head">
+        <div>
+          <div class="stock-title">${escapeHtml(item.name)}</div>
+          <div class="stock-sub">${escapeHtml(item.room)} · in stock ${item.in_stock}</div>
+        </div>
+        <div class="badge ${empty ? "low" : "ok"}">${empty ? "out of stock" : "stocked"}</div>
+      </div>
+
+      <div class="stock-controls">
+        <div class="stock-qty">
+          <button class="btn-inline" onclick="adjustStock('${item.id}', -1)">−</button>
+          <div class="qty-value">${item.in_stock}</div>
+          <button class="btn-inline" onclick="adjustStock('${item.id}', 1)">+</button>
+        </div>
+
+        <div class="stock-actions">
+          <button class="btn-inline" onclick="addStockToShopping('${item.id}')">shop</button>
+          <button class="btn-inline danger" onclick="deleteStockItem('${item.id}')">delete</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderShopping() {
+  if (isLoading) {
+    document.getElementById("panel-shopping").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
+  let active = filterByRoom(appData.shopping, "shopping").filter(i => !i.checked);
+  let done = filterByRoom(appData.shopping, "shopping").filter(i => i.checked);
+
+  active.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+  done.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+
+  document.getElementById("panel-shopping").innerHTML = `
+    ${renderRoomFilters("shopping")}
+    <div class="two-col">
+      <div>
+        <div class="section">
+          <div class="section-label">shopping list</div>
+          <div class="stack">
+            ${active.length ? active.map(renderShoppingRow).join("") : `<div class="empty">shopping list is clear</div>`}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">completed</div>
+          <div class="stack">
+            ${done.length ? done.map(renderShoppingRow).join("") : `<div class="empty">nothing completed yet</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div class="section-label">add shopping item</div>
+          <div class="field">
+            <label for="shopName">item</label>
+            <input class="input" id="shopName" type="text" placeholder="e.g. dish soap">
+          </div>
+          <div class="field">
+            <label for="shopRoom">room</label>
+            <select class="select" id="shopRoom">
+              ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+            </select>
+          </div>
+          <button class="btn-primary" onclick="addShoppingItem()">save item</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderShoppingRow(item) {
+  return `
+    <div class="shop-row">
+      <div class="shop-head">
+        <div>
+          <div class="task-check">
+            <input class="checkbox" type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleShopping('${item.id}', ${item.checked ? "false" : "true"})">
+            <div class="shop-title">${escapeHtml(item.name)}</div>
+          </div>
+          <div class="shop-sub">${escapeHtml(item.room)} · ${escapeHtml(item.source || "manual")}</div>
+        </div>
+        <div class="badge ${item.checked ? "done" : "ok"}">${item.checked ? "done" : "active"}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline danger" onclick="deleteShoppingItem('${item.id}')">delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function diffDays(fromISO, toISO) {
+  const a = new Date(fromISO + "T00:00:00");
+  const b = new Date(toISO + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+
+function addDays(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function frequencyDays(freq, interval = 1) {
+  const i = Math.max(1, Number(interval) || 1);
+  if (freq === "daily") return 1 * i;
+  if (freq === "weekly") return 7 * i;
+  if (freq === "monthly") return 30 * i;
+  if (freq === "quarterly") return 90 * i;
+  if (freq === "custom") return i;
+  return 7;
+}
+
+function frequencyLabel(freq, interval = 1) {
+  if (freq === "custom") {
+    if (interval === 180) return "every 6 months";
+    if (interval === 365) return "yearly";
+    return `every ${interval} days`;
+  }
+  if (freq === "daily" && interval > 1) return `every ${interval} days`;
+  if (freq === "weekly" && interval > 1) return `every ${interval} weeks`;
+  if (freq === "monthly" && interval > 1) return `every ${interval} months`;
+  if (freq === "quarterly" && interval > 1) return `every ${interval * 3} months`;
+  if (freq === "quarterly") return "quarterly";
+  return freq;
+}
+
+function computeRoutineStatus(r) {
+  const base = r.last_completed || todayISO();
+  const dueDate = addDays(base, frequencyDays(r.frequency, r.interval));
+  const daysUntilDue = diffDays(todayISO(), dueDate);
+  let status = "upcoming";
+  if (daysUntilDue < 0) status = "overdue";
+  else if (daysUntilDue === 0) status = "due";
+  else if (daysUntilDue <= 3) status = "soon";
+  return { dueDate, daysUntilDue, status };
+}
+
+async function addRoutine() {
+  const title = document.getElementById("routineTitle").value.trim();
+  const room = document.getElementById("routineRoom").value;
+  const frequency = document.getElementById("routineFrequency").value;
+  const interval = Math.max(1, parseInt(document.getElementById("routineInterval").value, 10) || 1);
+  const last_completed = document.getElementById("routineLastCompleted").value || todayISO();
+  const notes = document.getElementById("routineNotes").value.trim();
+
+  if (!title || !room) {
+    showToast("enter title and room", "error");
+    return;
+  }
+
+  const { data, error } = await db
+    .from("routines")
+    .insert([{ title, room, frequency, interval, last_completed, notes }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to save routine", "error");
+    return;
+  }
+
+  appData.routines.push(data);
+  renderAll();
+  showToast(`saved: ${title}`, "success");
+
+  document.getElementById("routineTitle").value = "";
+  document.getElementById("routineRoom").value = ROOMS[0];
+  document.getElementById("routineFrequency").value = "weekly";
+  document.getElementById("routineInterval").value = "1";
+  document.getElementById("routineLastCompleted").value = todayISO();
+  document.getElementById("routineNotes").value = "";
+}
+
+async function completeRoutine(id) {
+  const item = appData.routines.find(r => r.id === id);
+  if (!item) return;
+
+  const last_completed = todayISO();
+  const { data, error } = await db
+    .from("routines")
+    .update({ last_completed, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to update routine", "error");
+    return;
+  }
+
+  const idx = appData.routines.findIndex(r => r.id === id);
+  appData.routines[idx] = data;
+  renderAll();
+  showToast(`completed: ${item.title}`, "success");
+}
+
+async function deleteRoutine(id) {
+  const idx = appData.routines.findIndex(r => r.id === id);
+  if (idx < 0) return;
+  const item = appData.routines[idx];
+  if (!confirm(`Delete "${item.title}"?`)) return;
+
+  const { error } = await db.from("routines").delete().eq("id", id);
+
+  if (error) {
+    console.error(error);
+    showToast("failed to delete routine", "error");
+    return;
+  }
+
+  appData.routines.splice(idx, 1);
+  renderAll();
+  showToast(`deleted: ${item.title}`, "success");
+}
+
+async function addStockItem() {
+  const name = document.getElementById("stockName").value.trim();
+  const room = document.getElementById("stockRoom").value;
+  const in_stock = Math.max(0, parseInt(document.getElementById("stockCount").value, 10) || 0);
+
+  if (!name || !room) {
+    showToast("enter item and room", "error");
+    return;
+  }
+
+  const { data, error } = await db
+    .from("stock_items")
+    .insert([{ name, room, in_stock }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to save item", "error");
+    return;
+  }
+
+  appData.stock.push(data);
+  renderAll();
+  showToast(`saved: ${name}`, "success");
+
+  document.getElementById("stockName").value = "";
+  document.getElementById("stockRoom").value = ROOMS[0];
+  document.getElementById("stockCount").value = "1";
+}
+
+async function adjustStock(id, delta) {
+  const item = appData.stock.find(s => s.id === id);
+  if (!item) return;
+
+  const in_stock = Math.max(0, Number(item.in_stock || 0) + delta);
+
+  const { data, error } = await db
+    .from("stock_items")
+    .update({ in_stock, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to update stock", "error");
+    return;
+  }
+
+  const idx = appData.stock.findIndex(s => s.id === id);
+  appData.stock[idx] = data;
+  renderAll();
+}
+
+async function deleteStockItem(id) {
+  const idx = appData.stock.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  const item = appData.stock[idx];
+  if (!confirm(`Delete "${item.name}" from stock?`)) return;
+
+  const { error } = await db.from("stock_items").delete().eq("id", id);
+
+  if (error) {
+    console.error(error);
+    showToast("failed to delete item", "error");
+    return;
+  }
+
+  appData.stock.splice(idx, 1);
+  renderAll();
+  showToast(`deleted: ${item.name}`, "success");
+}
+
+async function addStockToShopping(id) {
+  const item = appData.stock.find(s => s.id === id);
+  if (!item) return;
+
+  const exists = appData.shopping.some(s =>
+    s.name.toLowerCase() === item.name.toLowerCase() &&
+    s.room === item.room &&
+    !s.checked
+  );
+
+  if (exists) {
+    showToast("already on shopping list", "error");
+    return;
+  }
+
+  const { data, error } = await db
+    .from("shopping_items")
+    .insert([{
+      name: item.name,
+      room: item.room,
+      checked: false,
+      source: "stock"
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to add shopping item", "error");
+    return;
+  }
+
+  appData.shopping.push(data);
+  renderAll();
+  showToast(`added to shopping: ${item.name}`, "success");
+}
+
+async function addShoppingItem() {
+  const name = document.getElementById("shopName").value.trim();
+  const room = document.getElementById("shopRoom").value;
+
+  if (!name) {
+    showToast("enter an item", "error");
+    return;
+  }
+
+  const { data, error } = await db
+    .from("shopping_items")
+    .insert([{
+      name,
+      room,
+      checked: false,
+      source: "manual"
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to save shopping item", "error");
+    return;
+  }
+
+  appData.shopping.push(data);
+  renderAll();
+  showToast(`saved: ${name}`, "success");
+
+  document.getElementById("shopName").value = "";
+  document.getElementById("shopRoom").value = ROOMS[0];
+}
+
+async function toggleShopping(id, nextChecked) {
+  const idx = appData.shopping.findIndex(s => s.id === id);
+  if (idx < 0) return;
+
+  const { data, error } = await db
+    .from("shopping_items")
+    .update({ checked: nextChecked, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to update shopping item", "error");
+    return;
+  }
+
+  appData.shopping[idx] = data;
+  renderAll();
+}
+
+async function deleteShoppingItem(id) {
+  const idx = appData.shopping.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  const item = appData.shopping[idx];
+
+  const { error } = await db.from("shopping_items").delete().eq("id", id);
+
+  if (error) {
+    console.error(error);
+    showToast("failed to delete shopping item", "error");
+    return;
+  }
+
+  appData.shopping.splice(idx, 1);
+  renderAll();
+  showToast(`deleted: ${item.name}`, "success");
+}
+
+function showToast(msg, type = "") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeJs(s) {
+  return String(s).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+}
 </script>
-
 </body>
 </html>
