@@ -453,9 +453,11 @@ body {
 
 <header class="header">
   <div class="wordmark">the <em>keep</em></div>
+
   <div class="app-status">
     <div class="status-dot"></div>
-    <span>household rhythms</span>
+    <span id="statusLabel"> </span>
+    <span id="userEmail" style="margin-left:8px; color:#c8a96e;"></span>
     <button class="btn-inline" id="signOutBtn" onclick="signOut()" style="display:none;">sign out</button>
   </div>
 </header>
@@ -588,12 +590,18 @@ function showSignedIn() {
   document.getElementById("authGate").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("signOutBtn").style.display = "inline-flex";
+
+  const email = currentUser?.email || "";
+  document.getElementById("userEmail").textContent = email;
 }
 
 function showSignedOut() {
   document.getElementById("authGate").style.display = "block";
   document.getElementById("appShell").style.display = "none";
   document.getElementById("signOutBtn").style.display = "none";
+
+  document.getElementById("userEmail").textContent = "";
+
   isLoading = false;
 }
 
