@@ -456,6 +456,7 @@ body {
   <div class="app-status">
     <div class="status-dot"></div>
     <span>household rhythms</span>
+    <button class="btn-inline" id="signOutBtn" onclick="signOut()" style="display:none;">sign out</button>
   </div>
 </header>
 
@@ -474,10 +475,21 @@ body {
   <div class="overview-stats" id="overviewStats"></div>
 </div>
 
-<div id="panel-today" class="panel active"></div>
-<div id="panel-routines" class="panel"></div>
-<div id="panel-stock" class="panel"></div>
-<div id="panel-shopping" class="panel"></div>
+<div id="authGate" class="section" style="display:none; max-width:520px;">
+  <div class="section-label">sign in</div>
+  <div class="field">
+    <label for="emailInput">email</label>
+    <input class="input" id="emailInput" type="email" placeholder="you@example.com">
+  </div>
+  <button class="btn-primary" onclick="signInWithMagicLink()">email me a magic link</button>
+</div>
+
+<div id="appShell" style="display:none;">
+  <div id="panel-today" class="panel active"></div>
+  <div id="panel-routines" class="panel"></div>
+  <div id="panel-stock" class="panel"></div>
+  <div id="panel-shopping" class="panel"></div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -500,21 +512,12 @@ const ROOMS = [
   "Outside"
 ];
 
-let appData = {
-  routines: [],
-  stock: [],
-  shopping: []
-};
-
-let filters = {
-  today: "All",
-  routines: "All",
-  stock: "All",
-  shopping: "All"
-};
-
+let appData = { routines: [], stock: [], shopping: [] };
+let filters = { today: "All", routines: "All", stock: "All", shopping: "All" };
 let toastTimer = null;
 let isLoading = true;
+let currentUser = null;
+let sessionReady = false;
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => switchPanel(btn.dataset.panel));
@@ -531,16 +534,112 @@ window.addStockToShopping = addStockToShopping;
 window.addShoppingItem = addShoppingItem;
 window.toggleShopping = toggleShopping;
 window.deleteShoppingItem = deleteShoppingItem;
+window.signInWithMagicLink = signInWithMagicLink;
+window.signOut = signOut;
 
 init();
 
 async function init() {
-  renderAll();
-  await loadAllFromSupabase();
+  bindAuthListener();
+  await restoreSession();
+}
+
+async function restoreSession() {
+  const { data, error } = await db.auth.getSession();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to restore session", "error");
+    showSignedOut();
+    return;
+  }
+
+  currentUser = data.session?.user ?? null;
+  sessionReady = true;
+
+  if (currentUser) {
+    showSignedIn();
+    await loadAllFromSupabase();
+  } else {
+    showSignedOut();
+  }
+
   renderAll();
 }
 
+function bindAuthListener() {
+  db.auth.onAuthStateChange(async (_event, session) => {
+    currentUser = session?.user ?? null;
+    sessionReady = true;
+
+    if (currentUser) {
+      showSignedIn();
+      await loadAllFromSupabase();
+    } else {
+      appData = { routines: [], stock: [], shopping: [] };
+      showSignedOut();
+    }
+
+    renderAll();
+  });
+}
+
+function showSignedIn() {
+  document.getElementById("authGate").style.display = "none";
+  document.getElementById("appShell").style.display = "block";
+  document.getElementById("signOutBtn").style.display = "inline-flex";
+}
+
+function showSignedOut() {
+  document.getElementById("authGate").style.display = "block";
+  document.getElementById("appShell").style.display = "none";
+  document.getElementById("signOutBtn").style.display = "none";
+  isLoading = false;
+}
+
+async function signInWithMagicLink() {
+  const email = document.getElementById("emailInput").value.trim();
+
+  if (!email) {
+    showToast("enter your email", "error");
+    return;
+  }
+
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: window.location.origin + window.location.pathname
+    }
+  });
+
+  if (error) {
+    console.error(error);
+    showToast("failed to send magic link", "error");
+    return;
+  }
+
+  showToast("check your email for the magic link", "success");
+}
+
+async function signOut() {
+  const { error } = await db.auth.signOut();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to sign out", "error");
+    return;
+  }
+
+  showToast("signed out", "success");
+}
+
 async function loadAllFromSupabase() {
+  if (!currentUser) {
+    appData = { routines: [], stock: [], shopping: [] };
+    isLoading = false;
+    return;
+  }
+
   isLoading = true;
   renderAll();
 
@@ -602,6 +701,11 @@ function renderAll() {
 }
 
 function renderOverview() {
+  if (!sessionReady || !currentUser) {
+    document.getElementById("overviewStats").innerHTML = "";
+    return;
+  }
+
   const routineStatuses = appData.routines.map(computeRoutineStatus);
   const dueToday = routineStatuses.filter(r => r.status === "due").length;
   const overdue = routineStatuses.filter(r => r.status === "overdue").length;
@@ -617,6 +721,8 @@ function renderOverview() {
 }
 
 function renderToday() {
+  if (!sessionReady || !currentUser) return;
+
   if (isLoading) {
     document.getElementById("panel-today").innerHTML = `<div class="loading">loading…</div>`;
     return;
@@ -698,6 +804,8 @@ function renderRoutineRow(r) {
 }
 
 function renderRoutines() {
+  if (!sessionReady || !currentUser) return;
+
   if (isLoading) {
     document.getElementById("panel-routines").innerHTML = `<div class="loading">loading…</div>`;
     return;
@@ -794,6 +902,8 @@ function renderRoutineManageRow(r) {
 }
 
 function renderStock() {
+  if (!sessionReady || !currentUser) return;
+
   if (isLoading) {
     document.getElementById("panel-stock").innerHTML = `<div class="loading">loading…</div>`;
     return;
@@ -887,6 +997,8 @@ function renderStockManageRow(item) {
 }
 
 function renderShopping() {
+  if (!sessionReady || !currentUser) return;
+
   if (isLoading) {
     document.getElementById("panel-shopping").innerHTML = `<div class="loading">loading…</div>`;
     return;
@@ -1023,7 +1135,15 @@ async function addRoutine() {
 
   const { data, error } = await db
     .from("routines")
-    .insert([{ title, room, frequency, interval, last_completed, notes }])
+    .insert([{
+      title,
+      room,
+      frequency,
+      interval,
+      last_completed,
+      notes,
+      user_id: currentUser.id
+    }])
     .select()
     .single();
 
@@ -1100,7 +1220,12 @@ async function addStockItem() {
 
   const { data, error } = await db
     .from("stock_items")
-    .insert([{ name, room, in_stock }])
+    .insert([{
+      name,
+      room,
+      in_stock,
+      user_id: currentUser.id
+    }])
     .select()
     .single();
 
@@ -1183,7 +1308,8 @@ async function addStockToShopping(id) {
       name: item.name,
       room: item.room,
       checked: false,
-      source: "stock"
+      source: "stock",
+      user_id: currentUser.id
     }])
     .select()
     .single();
@@ -1214,7 +1340,8 @@ async function addShoppingItem() {
       name,
       room,
       checked: false,
-      source: "manual"
+      source: "manual",
+      user_id: currentUser.id
     }])
     .select()
     .single();
