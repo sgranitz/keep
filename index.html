@@ -645,6 +645,7 @@ async function loadAllFromSupabase() {
   if (!currentUser) {
     appData = { routines: [], stock: [], shopping: [] };
     isLoading = false;
+    renderAll();
     return;
   }
 
@@ -658,7 +659,9 @@ async function loadAllFromSupabase() {
   ]);
 
   if (routinesRes.error || stockRes.error || shoppingRes.error) {
-    console.error(routinesRes.error || stockRes.error || shoppingRes.error);
+    console.error("routines error:", routinesRes.error);
+    console.error("stock error:", stockRes.error);
+    console.error("shopping error:", shoppingRes.error);
     showToast("failed to load data", "error");
   } else {
     appData.routines = routinesRes.data || [];
@@ -667,6 +670,7 @@ async function loadAllFromSupabase() {
   }
 
   isLoading = false;
+  renderAll();
 }
 
 function switchPanel(name) {
