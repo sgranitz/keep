@@ -242,7 +242,6 @@ body {
   margin-top: 12px;
 }
 
-.btn-sm,
 .btn-inline,
 .btn-primary,
 .btn-secondary,
@@ -284,21 +283,6 @@ body {
 }
 .btn-primary:hover { background: #d4b87e; }
 
-.btn-secondary {
-  width: 100%;
-  background: transparent;
-  border: 1px solid var(--border2);
-  border-radius: 7px;
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.btn-secondary:hover { color: var(--cream); border-color: var(--amber); }
-
 .field { margin-bottom: 12px; }
 
 .field label {
@@ -324,6 +308,7 @@ body {
   outline: none;
   transition: border-color 0.2s;
 }
+
 .input:focus,
 .select:focus,
 .number-input:focus,
@@ -339,12 +324,6 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-}
-
-.form-grid-4 {
-  display: grid;
-  grid-template-columns: minmax(170px, 2fr) minmax(120px, 1.2fr) 90px 90px;
-  gap: 10px;
 }
 
 .task-check {
@@ -379,38 +358,6 @@ body {
   text-align: center;
   font-size: 12px;
   color: var(--cream);
-}
-
-.threshold-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.threshold-label {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.threshold-input {
-  width: 56px;
-  background: var(--bg2);
-  border: 1px dashed var(--border2);
-  border-radius: 5px;
-  color: var(--cream);
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  padding: 8px 8px;
-  outline: none;
-  text-align: center;
-  transition: border-color 0.2s;
-}
-.threshold-input:focus {
-  border-color: var(--amber);
-  border-style: solid;
 }
 
 .stock-actions {
@@ -448,6 +395,7 @@ body {
   border-radius: 5px;
   cursor: pointer;
 }
+
 .filter-btn.active {
   color: var(--amber);
   border-color: var(--amber-dim);
@@ -488,8 +436,7 @@ body {
   .main-nav {
     grid-template-columns: 1fr 1fr;
   }
-  .form-grid-2,
-  .form-grid-4 {
+  .form-grid-2 {
     grid-template-columns: 1fr;
   }
 }
@@ -528,35 +475,132 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
+const ROOMS = [
+  "Kitchen",
+  "Dining Room",
+  "Living Room",
+  "Main Bedroom",
+  "Office",
+  "Laundry Room",
+  "Basement",
+  "Upstairs",
+  "Outside"
+];
+
 const SEED_DATA = {
   routines: [
-    { id: uid(), title: "Wipe kitchen counters", area: "Kitchen", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
-    { id: uid(), title: "Unload dishwasher", area: "Kitchen", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
-    { id: uid(), title: "Vacuum living room", area: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
-    { id: uid(), title: "Clean bathroom sink", area: "Bathroom", frequency: "weekly", interval: 1, last_completed: daysAgo(5), notes: "" },
-    { id: uid(), title: "Wash sheets", area: "Bedroom", frequency: "weekly", interval: 2, last_completed: daysAgo(11), notes: "" },
-    { id: uid(), title: "Organize pantry", area: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(34), notes: "" },
-    { id: uid(), title: "Clean dryer lint area", area: "Laundry Room", frequency: "monthly", interval: 1, last_completed: daysAgo(20), notes: "" },
-    { id: uid(), title: "Replace HVAC filter", area: "Hallway", frequency: "quarterly", interval: 1, last_completed: daysAgo(80), notes: "" }
+    { id: uid(), title: "Sweep floors", room: "Basement", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "Quick sweep of traffic paths" },
+    { id: uid(), title: "Declutter surfaces and storage", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(18), notes: "Put away loose items and tidy" },
+    { id: uid(), title: "Dust shelves and storage bins", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(22), notes: "" },
+    { id: uid(), title: "Vacuum baseboards and corners", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(35), notes: "" },
+    { id: uid(), title: "Check for moisture or mildew", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(40), notes: "Inspect walls, corners, and dehumidifier" },
+    { id: uid(), title: "Deep clean floors and walls", room: "Basement", frequency: "quarterly", interval: 1, last_completed: daysAgo(70), notes: "Spot mop and wipe walls" },
+    { id: uid(), title: "Seasonal declutter and donate", room: "Basement", frequency: "custom", interval: 180, last_completed: daysAgo(120), notes: "Sort boxes and donate unused items" },
+
+    { id: uid(), title: "Wipe counters and sink", room: "Upstairs", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
+    { id: uid(), title: "Clean toilets, tubs, showers, and sinks", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "" },
+    { id: uid(), title: "Wash bath mats and towels", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(20), notes: "" },
+
+    { id: uid(), title: "Wipe table and chairs", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(5), notes: "" },
+    { id: uid(), title: "Dust surfaces and light fixture", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
+    { id: uid(), title: "Vacuum or mop floor", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
+    { id: uid(), title: "Wipe windows", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(12), notes: "" },
+    { id: uid(), title: "Dust chandelier or light fixture", room: "Dining Room", frequency: "monthly", interval: 1, last_completed: daysAgo(21), notes: "" },
+    { id: uid(), title: "Vacuum baseboards and windowsills", room: "Dining Room", frequency: "monthly", interval: 1, last_completed: daysAgo(31), notes: "" },
+
+    { id: uid(), title: "Make the bed", room: "Upstairs", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
+    { id: uid(), title: "Put away clothes and toys", room: "Upstairs", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
+    { id: uid(), title: "Dust furniture and light fixtures", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(10), notes: "" },
+    { id: uid(), title: "Vacuum floor and under bed", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
+    { id: uid(), title: "Change and launder sheets", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
+    { id: uid(), title: "Wipe mirrors and smudges", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(11), notes: "" },
+    { id: uid(), title: "Sanitize high touch surfaces", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(29), notes: "Doorknobs, switches, drawer pulls" },
+    { id: uid(), title: "Launder pillow protectors and mattress pad", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(24), notes: "" },
+    { id: uid(), title: "Toy rotation and donate", room: "Upstairs", frequency: "custom", interval: 180, last_completed: daysAgo(140), notes: "Remove broken or unused toys" },
+
+    { id: uid(), title: "Wipe fingerprints from glass and screens", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "Use screen-safe cleaner" },
+    { id: uid(), title: "Dust shelves, consoles, and TV stand", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
+    { id: uid(), title: "Vacuum or mop floor", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
+    { id: uid(), title: "Sanitize high touch surfaces", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(30), notes: "Controllers, handles, switches" },
+
+    { id: uid(), title: "Wipe counters and sanitize sink", room: "Kitchen", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "Food contact surfaces" },
+    { id: uid(), title: "Wash dishes or run dishwasher", room: "Kitchen", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
+    { id: uid(), title: "Wipe appliance fronts and cabinet doors", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
+    { id: uid(), title: "Flush kitchen drain with boiling water", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(10), notes: "" },
+    { id: uid(), title: "Vent hood wipe exterior", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(13), notes: "" },
+    { id: uid(), title: "Vacuum or mop floor", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "" },
+    { id: uid(), title: "Refrigerator quick purge and wipe shelves", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(20), notes: "Discard old items" },
+    { id: uid(), title: "Wash vent hood filters", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(35), notes: "" },
+    { id: uid(), title: "Wipe inside and outside of trash and recycling bins", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(32), notes: "" },
+    { id: uid(), title: "Scrub grout and backsplash", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(33), notes: "" },
+    { id: uid(), title: "Organize and wipe pantry shelves", room: "Kitchen", frequency: "custom", interval: 180, last_completed: daysAgo(150), notes: "Remove items, wipe, restock" },
+    { id: uid(), title: "Deep clean oven", room: "Kitchen", frequency: "custom", interval: 180, last_completed: daysAgo(140), notes: "" },
+    { id: uid(), title: "Wipe kitchen ceiling and cabinet interiors", room: "Kitchen", frequency: "custom", interval: 180, last_completed: daysAgo(165), notes: "" },
+    { id: uid(), title: "Deep clean refrigerator and freezer", room: "Kitchen", frequency: "custom", interval: 365, last_completed: daysAgo(280), notes: "Wash bins and clean gasket" },
+    { id: uid(), title: "Pull out and clean behind or beneath appliances", room: "Kitchen", frequency: "custom", interval: 365, last_completed: daysAgo(310), notes: "" },
+
+    { id: uid(), title: "Clear lint trap and wipe machines", room: "Laundry Room", frequency: "weekly", interval: 1, last_completed: daysAgo(5), notes: "" },
+    { id: uid(), title: "Vacuum or mop floor", room: "Laundry Room", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
+    { id: uid(), title: "Wipe sink, counter, and detergent spills", room: "Laundry Room", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
+    { id: uid(), title: "Wipe inside and outside of trash and recycling bins", room: "Laundry Room", frequency: "monthly", interval: 1, last_completed: daysAgo(21), notes: "" },
+    { id: uid(), title: "Wipe doors, trim, and switch plates", room: "Laundry Room", frequency: "monthly", interval: 1, last_completed: daysAgo(29), notes: "" },
+    { id: uid(), title: "Wash filter on washing machine", room: "Laundry Room", frequency: "custom", interval: 180, last_completed: daysAgo(130), notes: "Per model instructions" },
+    { id: uid(), title: "Inspect hoses and connections", room: "Laundry Room", frequency: "custom", interval: 180, last_completed: daysAgo(155), notes: "Look for cracks or leaks" },
+    { id: uid(), title: "Clean dryer vent and exhaust", room: "Laundry Room", frequency: "custom", interval: 365, last_completed: daysAgo(260), notes: "Consider professional if long run" },
+
+    { id: uid(), title: "Quick tidy books, remotes, and blankets", room: "Living Room", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
+    { id: uid(), title: "Dust surfaces and light fixtures", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
+    { id: uid(), title: "Vacuum floors and rugs", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
+    { id: uid(), title: "Vacuum upholstery and cushions", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(10), notes: "Use upholstery attachment" },
+    { id: uid(), title: "Wipe mirrors and glass doors", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(11), notes: "" },
+    { id: uid(), title: "Vacuum baseboards and windowsills", room: "Living Room", frequency: "monthly", interval: 1, last_completed: daysAgo(28), notes: "" },
+
+    { id: uid(), title: "Make the bed", room: "Main Bedroom", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
+    { id: uid(), title: "Put away clothes", room: "Main Bedroom", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
+    { id: uid(), title: "Dust furniture and light fixtures", room: "Main Bedroom", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
+    { id: uid(), title: "Vacuum floor and under bed", room: "Main Bedroom", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
+    { id: uid(), title: "Change and launder sheets", room: "Main Bedroom", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
+    { id: uid(), title: "Launder pillow protectors and mattress pad", room: "Main Bedroom", frequency: "monthly", interval: 1, last_completed: daysAgo(27), notes: "" },
+    { id: uid(), title: "Vacuum baseboards and windowsills", room: "Main Bedroom", frequency: "monthly", interval: 1, last_completed: daysAgo(31), notes: "" },
+    { id: uid(), title: "Rotate or flip mattress", room: "Main Bedroom", frequency: "custom", interval: 180, last_completed: daysAgo(160), notes: "" },
+    { id: uid(), title: "Vacuum mattress and bed frame crevices", room: "Main Bedroom", frequency: "custom", interval: 180, last_completed: daysAgo(175), notes: "" },
+
+    { id: uid(), title: "Dust desk, shelves, and electronics", room: "Office", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "Use dry cloth on monitors" },
+    { id: uid(), title: "Vacuum or mop floor", room: "Office", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
+    { id: uid(), title: "Empty trash and shred or recycle paper", room: "Office", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "" },
+    { id: uid(), title: "Wipe keyboard, mouse, and switch plates", room: "Office", frequency: "monthly", interval: 1, last_completed: daysAgo(21), notes: "Use electronics-safe wipe" },
+    { id: uid(), title: "Wash guest bedding", room: "Office", frequency: "quarterly", interval: 1, last_completed: daysAgo(60), notes: "After guests or quarterly if staged" },
+    { id: uid(), title: "Declutter papers and cables", room: "Office", frequency: "quarterly", interval: 1, last_completed: daysAgo(95), notes: "" },
+
+    { id: uid(), title: "Sweep patio or entry", room: "Outside", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
+    { id: uid(), title: "Tidy outdoor furniture", room: "Outside", frequency: "weekly", interval: 1, last_completed: daysAgo(12), notes: "" },
+    { id: uid(), title: "Remove leaves and debris", room: "Outside", frequency: "monthly", interval: 1, last_completed: daysAgo(26), notes: "" },
+    { id: uid(), title: "Check planters and outdoor storage", room: "Outside", frequency: "monthly", interval: 1, last_completed: daysAgo(33), notes: "" }
   ],
   stock: [
-    { id: uid(), name: "Paper towels", location: "Pantry", par_level: 6, current_level: 0, reorder_threshold: 2 },
-    { id: uid(), name: "Toilet paper", location: "Bathroom", par_level: 12, current_level: 8, reorder_threshold: 4 },
-    { id: uid(), name: "Dish soap", location: "Kitchen", par_level: 2, current_level: 2, reorder_threshold: 1 },
-    { id: uid(), name: "Dishwasher tabs", location: "Kitchen", par_level: 1, current_level: 4, reorder_threshold: 0 },
-    { id: uid(), name: "Sponges", location: "Kitchen", par_level: 4, current_level: 4, reorder_threshold: 1 },
-    { id: uid(), name: "All-purpose cleaner", location: "Laundry Room", par_level: 2, current_level: 3, reorder_threshold: 1 },
-    { id: uid(), name: "Laundry detergent", location: "Laundry Room", par_level: 2, current_level: 4, reorder_threshold: 1 },
-    { id: uid(), name: "Trash bags", location: "Laundry Room", par_level: 2, current_level: 3, reorder_threshold: 1 }
+    { id: uid(), name: "Paper towels", room: "Kitchen", in_stock: 0 },
+    { id: uid(), name: "Dish soap", room: "Kitchen", in_stock: 2 },
+    { id: uid(), name: "Dishwasher tabs", room: "Kitchen", in_stock: 4 },
+    { id: uid(), name: "Sponges", room: "Kitchen", in_stock: 2 },
+    { id: uid(), name: "Trash bags", room: "Laundry Room", in_stock: 2 },
+    { id: uid(), name: "Laundry detergent", room: "Laundry Room", in_stock: 3 },
+    { id: uid(), name: "All-purpose cleaner", room: "Laundry Room", in_stock: 1 },
+    { id: uid(), name: "Light bulbs", room: "Basement", in_stock: 2 },
+    { id: uid(), name: "Outdoor gloves", room: "Outside", in_stock: 1 }
   ],
   shopping: [
-    { id: uid(), name: "Paper towels", category: "Pantry", checked: false, source: "stock" },
-    { id: uid(), name: "White vinegar", category: "Cleaning", checked: false, source: "manual" }
+    { id: uid(), name: "Paper towels", room: "Kitchen", checked: false, source: "stock" },
+    { id: uid(), name: "White vinegar", room: "Kitchen", checked: false, source: "manual" }
   ]
 };
 
 let appData = loadAppData();
-let routineFilter = "all";
+let filters = {
+  today: "All",
+  routines: "All",
+  stock: "All",
+  shopping: "All"
+};
 let toastTimer = null;
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -580,12 +624,6 @@ function daysAgo(n) {
   return d.toISOString().slice(0, 10);
 }
 
-function daysFromNow(n) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
 function diffDays(fromISO, toISO) {
   const a = new Date(fromISO + "T00:00:00");
   const b = new Date(toISO + "T00:00:00");
@@ -604,7 +642,22 @@ function frequencyDays(freq, interval = 1) {
   if (freq === "weekly") return 7 * i;
   if (freq === "monthly") return 30 * i;
   if (freq === "quarterly") return 90 * i;
+  if (freq === "custom") return i;
   return 7;
+}
+
+function frequencyLabel(freq, interval = 1) {
+  if (freq === "custom") {
+    if (interval === 180) return "every 6 months";
+    if (interval === 365) return "yearly";
+    return `every ${interval} days`;
+  }
+  if (freq === "daily" && interval > 1) return `every ${interval} days`;
+  if (freq === "weekly" && interval > 1) return `every ${interval} weeks`;
+  if (freq === "monthly" && interval > 1) return `every ${interval} months`;
+  if (freq === "quarterly" && interval > 1) return `every ${interval * 3} months`;
+  if (freq === "quarterly") return "quarterly";
+  return freq;
 }
 
 function computeRoutineStatus(r) {
@@ -615,7 +668,6 @@ function computeRoutineStatus(r) {
   if (daysUntilDue < 0) status = "overdue";
   else if (daysUntilDue === 0) status = "due";
   else if (daysUntilDue <= 3) status = "soon";
-
   return { dueDate, daysUntilDue, status };
 }
 
@@ -649,6 +701,28 @@ function switchPanel(name) {
   });
 }
 
+function filterByRoom(items, panelName) {
+  const room = filters[panelName];
+  if (!room || room === "All") return items;
+  return items.filter(x => x.room === room);
+}
+
+function renderRoomFilters(panelName) {
+  const values = ["All", ...ROOMS];
+  return `
+    <div class="filter-row">
+      ${values.map(room => `
+        <button class="filter-btn ${filters[panelName] === room ? "active" : ""}" onclick="setRoomFilter('${panelName}', '${escapeJs(room)}')">${room}</button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function setRoomFilter(panelName, room) {
+  filters[panelName] = room;
+  renderAll();
+}
+
 function renderAll() {
   renderOverview();
   renderToday();
@@ -661,28 +735,33 @@ function renderOverview() {
   const routineStatuses = appData.routines.map(computeRoutineStatus);
   const dueToday = routineStatuses.filter(r => r.status === "due").length;
   const overdue = routineStatuses.filter(r => r.status === "overdue").length;
-  const lowStock = appData.stock.filter(s => Number(s.current_level) <= Number(s.reorder_threshold)).length;
+  const outOfStock = appData.stock.filter(s => Number(s.in_stock) === 0).length;
   const shopping = appData.shopping.filter(i => !i.checked).length;
 
   document.getElementById("overviewStats").innerHTML = `
     <div class="overview-stat"><strong>${dueToday}</strong><span>due today</span></div>
     <div class="overview-stat"><strong>${overdue}</strong><span>overdue</span></div>
-    <div class="overview-stat"><strong>${lowStock}</strong><span>low stock</span></div>
+    <div class="overview-stat"><strong>${outOfStock}</strong><span>out of stock</span></div>
     <div class="overview-stat"><strong>${shopping}</strong><span>shopping</span></div>
   `;
 }
 
 function renderToday() {
-  const enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
+  let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
+  enriched = filterByRoom(enriched, "today");
+
   const overdue = enriched.filter(r => r.status === "overdue");
   const due = enriched.filter(r => r.status === "due");
-  const upcoming = enriched.filter(r => r.status === "soon" || r.status === "upcoming")
+  const upcoming = enriched
+    .filter(r => r.status === "soon" || r.status === "upcoming")
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
-    .slice(0, 6);
-  const lowStock = appData.stock.filter(s => Number(s.current_level) <= Number(s.reorder_threshold));
-  const shopping = appData.shopping.filter(i => !i.checked);
+    .slice(0, 8);
+
+  const outOfStock = filterByRoom(appData.stock, "today").filter(s => Number(s.in_stock) === 0);
+  const shopping = filterByRoom(appData.shopping, "today").filter(i => !i.checked);
 
   document.getElementById("panel-today").innerHTML = `
+    ${renderRoomFilters("today")}
     <div class="two-col">
       <div>
         <div class="section">
@@ -703,8 +782,8 @@ function renderToday() {
 
       <div>
         <div class="section">
-          <div class="section-label">low stock</div>
-          <div class="stack">${lowStock.length ? lowStock.map(renderStockCardCompact).join("") : `<div class="empty">everything stocked</div>`}</div>
+          <div class="section-label">out of stock</div>
+          <div class="stack">${outOfStock.length ? outOfStock.map(renderStockCardCompact).join("") : `<div class="empty">everything stocked</div>`}</div>
         </div>
 
         <div class="section">
@@ -735,7 +814,7 @@ function renderRoutineRow(r) {
             <input class="checkbox" type="checkbox" onchange="completeRoutine('${r.id}')">
             <div class="task-title">${escapeHtml(r.title)}</div>
           </div>
-          <div class="task-sub">${escapeHtml(r.area)} · ${escapeHtml(r.frequency)}${r.interval > 1 ? ` · every ${r.interval}` : ""}</div>
+          <div class="task-sub">${escapeHtml(r.room)} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}</div>
         </div>
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
@@ -743,42 +822,19 @@ function renderRoutineRow(r) {
   `;
 }
 
-function renderStockCardCompact(item) {
-  const low = Number(item.current_level) <= Number(item.reorder_threshold);
-  return `
-    <div class="stock-row">
-      <div class="stock-head">
-        <div>
-          <div class="stock-title">${escapeHtml(item.name)}</div>
-          <div class="stock-sub">${escapeHtml(item.location)} · ${item.current_level} on hand</div>
-        </div>
-        <div class="badge ${low ? "low" : "ok"}">${low ? "low stock" : "stocked"}</div>
-      </div>
-      <div class="row-actions">
-        <button class="btn-inline" onclick="addStockToShopping('${item.id}')">add to shopping</button>
-      </div>
-    </div>
-  `;
-}
-
 function renderRoutines() {
-  const enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
-  const filtered = routineFilter === "all"
-    ? enriched
-    : enriched.filter(r => r.frequency === routineFilter);
+  let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
+  enriched = filterByRoom(enriched, "routines");
+  enriched.sort((a, b) => a.room.localeCompare(b.room) || a.title.localeCompare(b.title));
 
   document.getElementById("panel-routines").innerHTML = `
+    ${renderRoomFilters("routines")}
     <div class="two-col">
       <div>
         <div class="section">
           <div class="section-label">routines</div>
-          <div class="filter-row">
-            ${["all","daily","weekly","monthly","quarterly"].map(f => `
-              <button class="filter-btn ${routineFilter === f ? "active" : ""}" onclick="setRoutineFilter('${f}')">${f}</button>
-            `).join("")}
-          </div>
           <div class="stack">
-            ${filtered.length ? filtered.sort((a,b) => a.area.localeCompare(b.area) || a.title.localeCompare(b.title)).map(renderRoutineManageRow).join("") : `<div class="empty">no routines in this view</div>`}
+            ${enriched.length ? enriched.map(renderRoutineManageRow).join("") : `<div class="empty">no routines in this view</div>`}
           </div>
         </div>
       </div>
@@ -792,8 +848,10 @@ function renderRoutines() {
           </div>
           <div class="form-grid-2">
             <div class="field">
-              <label for="routineArea">area</label>
-              <input class="input" id="routineArea" type="text" placeholder="e.g. Living Room">
+              <label for="routineRoom">room</label>
+              <select class="select" id="routineRoom">
+                ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+              </select>
             </div>
             <div class="field">
               <label for="routineFrequency">frequency</label>
@@ -802,6 +860,7 @@ function renderRoutines() {
                 <option value="weekly" selected>Weekly</option>
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
+                <option value="custom">Custom days</option>
               </select>
             </div>
           </div>
@@ -842,7 +901,7 @@ function renderRoutineManageRow(r) {
       <div class="task-head">
         <div>
           <div class="task-title">${escapeHtml(r.title)}</div>
-          <div class="task-sub">${escapeHtml(r.area)} · ${escapeHtml(r.frequency)}${r.interval > 1 ? ` · every ${r.interval}` : ""} · last ${r.last_completed || "—"}</div>
+          <div class="task-sub">${escapeHtml(r.room)} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}${r.notes ? ` · ${escapeHtml(r.notes)}` : ""}</div>
         </div>
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
@@ -855,13 +914,17 @@ function renderRoutineManageRow(r) {
 }
 
 function renderStock() {
+  let items = filterByRoom(appData.stock, "stock");
+  items.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+
   document.getElementById("panel-stock").innerHTML = `
+    ${renderRoomFilters("stock")}
     <div class="two-col">
       <div>
         <div class="section">
           <div class="section-label">stock</div>
           <div class="stack">
-            ${appData.stock.length ? appData.stock.map(renderStockManageRow).join("") : `<div class="empty">no stock items yet</div>`}
+            ${items.length ? items.map(renderStockManageRow).join("") : `<div class="empty">no stock items in this view</div>`}
           </div>
         </div>
       </div>
@@ -869,59 +932,64 @@ function renderStock() {
       <div>
         <div class="section">
           <div class="section-label">add item</div>
-          <div class="form-grid-4">
-            <input class="input" id="stockName" type="text" placeholder="item">
-            <input class="input" id="stockLocation" type="text" placeholder="location">
-            <input class="number-input" id="stockPar" type="number" min="0" step="1" placeholder="par">
-            <input class="number-input" id="stockCurrent" type="number" min="0" step="1" placeholder="current">
+          <div class="field">
+            <label for="stockName">item</label>
+            <input class="input" id="stockName" type="text" placeholder="e.g. paper towels">
           </div>
-          <div style="height:10px"></div>
           <div class="form-grid-2">
             <div class="field">
-              <label for="stockThreshold">threshold</label>
-              <input class="number-input" id="stockThreshold" type="number" min="0" step="1" value="1">
+              <label for="stockRoom">room</label>
+              <select class="select" id="stockRoom">
+                ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+              </select>
             </div>
             <div class="field">
-              <label>&nbsp;</label>
-              <button class="btn-primary" onclick="addStockItem()">save item</button>
+              <label for="stockCount">in stock</label>
+              <input class="number-input" id="stockCount" type="number" min="0" step="1" value="1">
             </div>
           </div>
+          <button class="btn-primary" onclick="addStockItem()">save item</button>
         </div>
       </div>
     </div>
   `;
 }
 
-function renderStockManageRow(item) {
-  const low = Number(item.current_level) <= Number(item.reorder_threshold);
+function renderStockCardCompact(item) {
+  const empty = Number(item.in_stock) === 0;
   return `
     <div class="stock-row">
       <div class="stock-head">
         <div>
           <div class="stock-title">${escapeHtml(item.name)}</div>
-          <div class="stock-sub">${escapeHtml(item.location)} · par ${item.par_level}</div>
+          <div class="stock-sub">${escapeHtml(item.room)} · in stock ${item.in_stock}</div>
         </div>
-        <div class="badge ${low ? "low" : "ok"}">${low ? "low stock" : "stocked"}</div>
+        <div class="badge ${empty ? "low" : "ok"}">${empty ? "out" : "stocked"}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline" onclick="addStockToShopping('${item.id}')">add to shopping</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderStockManageRow(item) {
+  const empty = Number(item.in_stock) === 0;
+  return `
+    <div class="stock-row">
+      <div class="stock-head">
+        <div>
+          <div class="stock-title">${escapeHtml(item.name)}</div>
+          <div class="stock-sub">${escapeHtml(item.room)} · in stock ${item.in_stock}</div>
+        </div>
+        <div class="badge ${empty ? "low" : "ok"}">${empty ? "out of stock" : "stocked"}</div>
       </div>
 
       <div class="stock-controls">
         <div class="stock-qty">
           <button class="btn-inline" onclick="adjustStock('${item.id}', -1)">−</button>
-          <div class="qty-value">${item.current_level}</div>
+          <div class="qty-value">${item.in_stock}</div>
           <button class="btn-inline" onclick="adjustStock('${item.id}', 1)">+</button>
-        </div>
-
-        <div class="threshold-group">
-          <label class="threshold-label" for="threshold-${item.id}">threshold</label>
-          <input
-            id="threshold-${item.id}"
-            class="threshold-input"
-            type="number"
-            min="0"
-            step="1"
-            value="${item.reorder_threshold}"
-            onchange="updateThreshold('${item.id}', this.value)"
-          >
         </div>
 
         <div class="stock-actions">
@@ -934,10 +1002,14 @@ function renderStockManageRow(item) {
 }
 
 function renderShopping() {
-  const active = appData.shopping.filter(i => !i.checked);
-  const done = appData.shopping.filter(i => i.checked);
+  let active = filterByRoom(appData.shopping, "shopping").filter(i => !i.checked);
+  let done = filterByRoom(appData.shopping, "shopping").filter(i => i.checked);
+
+  active.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+  done.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
 
   document.getElementById("panel-shopping").innerHTML = `
+    ${renderRoomFilters("shopping")}
     <div class="two-col">
       <div>
         <div class="section">
@@ -963,8 +1035,10 @@ function renderShopping() {
             <input class="input" id="shopName" type="text" placeholder="e.g. dish soap">
           </div>
           <div class="field">
-            <label for="shopCategory">category</label>
-            <input class="input" id="shopCategory" type="text" placeholder="e.g. Kitchen">
+            <label for="shopRoom">room</label>
+            <select class="select" id="shopRoom">
+              ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+            </select>
           </div>
           <button class="btn-primary" onclick="addShoppingItem()">save item</button>
         </div>
@@ -982,7 +1056,7 @@ function renderShoppingRow(item) {
             <input class="checkbox" type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleShopping('${item.id}')">
             <div class="shop-title">${escapeHtml(item.name)}</div>
           </div>
-          <div class="shop-sub">${escapeHtml(item.category || "Household")} · ${escapeHtml(item.source || "manual")}</div>
+          <div class="shop-sub">${escapeHtml(item.room)} · ${escapeHtml(item.source || "manual")}</div>
         </div>
         <div class="badge ${item.checked ? "done" : "ok"}">${item.checked ? "done" : "active"}</div>
       </div>
@@ -991,11 +1065,6 @@ function renderShoppingRow(item) {
       </div>
     </div>
   `;
-}
-
-function setRoutineFilter(filter) {
-  routineFilter = filter;
-  renderRoutines();
 }
 
 function completeRoutine(id) {
@@ -1020,24 +1089,24 @@ function deleteRoutine(id) {
 
 function addRoutine() {
   const title = document.getElementById("routineTitle").value.trim();
-  const area = document.getElementById("routineArea").value.trim();
+  const room = document.getElementById("routineRoom").value;
   const frequency = document.getElementById("routineFrequency").value;
   const interval = Math.max(1, parseInt(document.getElementById("routineInterval").value, 10) || 1);
   const last_completed = document.getElementById("routineLastCompleted").value || todayISO();
   const notes = document.getElementById("routineNotes").value.trim();
 
-  if (!title || !area) {
-    showToast("enter title and area", "error");
+  if (!title || !room) {
+    showToast("enter title and room", "error");
     return;
   }
 
-  appData.routines.push({ id: uid(), title, area, frequency, interval, last_completed, notes });
+  appData.routines.push({ id: uid(), title, room, frequency, interval, last_completed, notes });
   saveAppData();
   renderAll();
   showToast(`saved: ${title}`, "success");
 
   document.getElementById("routineTitle").value = "";
-  document.getElementById("routineArea").value = "";
+  document.getElementById("routineRoom").value = ROOMS[0];
   document.getElementById("routineFrequency").value = "weekly";
   document.getElementById("routineInterval").value = "1";
   document.getElementById("routineLastCompleted").value = todayISO();
@@ -1047,41 +1116,29 @@ function addRoutine() {
 function adjustStock(id, delta) {
   const item = appData.stock.find(s => s.id === id);
   if (!item) return;
-  item.current_level = Math.max(0, Number(item.current_level || 0) + delta);
-  saveAppData();
-  renderAll();
-}
-
-function updateThreshold(id, value) {
-  const item = appData.stock.find(s => s.id === id);
-  if (!item) return;
-  item.reorder_threshold = Math.max(0, parseInt(value, 10) || 0);
+  item.in_stock = Math.max(0, Number(item.in_stock || 0) + delta);
   saveAppData();
   renderAll();
 }
 
 function addStockItem() {
   const name = document.getElementById("stockName").value.trim();
-  const location = document.getElementById("stockLocation").value.trim();
-  const par_level = Math.max(0, parseInt(document.getElementById("stockPar").value, 10) || 0);
-  const current_level = Math.max(0, parseInt(document.getElementById("stockCurrent").value, 10) || 0);
-  const reorder_threshold = Math.max(0, parseInt(document.getElementById("stockThreshold").value, 10) || 0);
+  const room = document.getElementById("stockRoom").value;
+  const in_stock = Math.max(0, parseInt(document.getElementById("stockCount").value, 10) || 0);
 
-  if (!name || !location) {
-    showToast("enter item and location", "error");
+  if (!name || !room) {
+    showToast("enter item and room", "error");
     return;
   }
 
-  appData.stock.push({ id: uid(), name, location, par_level, current_level, reorder_threshold });
+  appData.stock.push({ id: uid(), name, room, in_stock });
   saveAppData();
   renderAll();
   showToast(`saved: ${name}`, "success");
 
   document.getElementById("stockName").value = "";
-  document.getElementById("stockLocation").value = "";
-  document.getElementById("stockPar").value = "";
-  document.getElementById("stockCurrent").value = "";
-  document.getElementById("stockThreshold").value = "1";
+  document.getElementById("stockRoom").value = ROOMS[0];
+  document.getElementById("stockCount").value = "1";
 }
 
 function deleteStockItem(id) {
@@ -1100,14 +1157,16 @@ function addStockToShopping(id) {
   if (!item) return;
 
   const exists = appData.shopping.some(s =>
-    s.name.toLowerCase() === item.name.toLowerCase() && !s.checked
+    s.name.toLowerCase() === item.name.toLowerCase() &&
+    s.room === item.room &&
+    !s.checked
   );
 
   if (!exists) {
     appData.shopping.push({
       id: uid(),
       name: item.name,
-      category: item.location || "Household",
+      room: item.room,
       checked: false,
       source: "stock"
     });
@@ -1121,7 +1180,7 @@ function addStockToShopping(id) {
 
 function addShoppingItem() {
   const name = document.getElementById("shopName").value.trim();
-  const category = document.getElementById("shopCategory").value.trim();
+  const room = document.getElementById("shopRoom").value;
 
   if (!name) {
     showToast("enter an item", "error");
@@ -1131,7 +1190,7 @@ function addShoppingItem() {
   appData.shopping.push({
     id: uid(),
     name,
-    category: category || "Household",
+    room,
     checked: false,
     source: "manual"
   });
@@ -1141,7 +1200,7 @@ function addShoppingItem() {
   showToast(`saved: ${name}`, "success");
 
   document.getElementById("shopName").value = "";
-  document.getElementById("shopCategory").value = "";
+  document.getElementById("shopRoom").value = ROOMS[0];
 }
 
 function toggleShopping(id) {
@@ -1177,6 +1236,10 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function escapeJs(s) {
+  return String(s).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
 }
 </script>
 </body>
