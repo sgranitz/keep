@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>the keep</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --bg:        #1a1612;
@@ -244,7 +245,6 @@ body {
 
 .btn-inline,
 .btn-primary,
-.btn-secondary,
 .input,
 .select,
 .number-input,
@@ -402,6 +402,14 @@ body {
   background: var(--amber-bg);
 }
 
+.loading {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 18px 2px;
+}
+
 .toast {
   position: fixed;
   bottom: 24px;
@@ -475,6 +483,10 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
+const SUPABASE_URL = "https://xpnznomjwzvrneulfmaa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_BF31unuVo4QhL6yYwBLYGA_W-bu2yC6";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const ROOMS = [
   "Kitchen",
   "Dining Room",
@@ -487,209 +499,54 @@ const ROOMS = [
   "Outside"
 ];
 
-const SEED_DATA = {
-  routines: [
-    { id: uid(), title: "Sweep floors", room: "Basement", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "Quick sweep of traffic paths" },
-    { id: uid(), title: "Declutter surfaces and storage", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(18), notes: "Put away loose items and tidy" },
-    { id: uid(), title: "Dust shelves and storage bins", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(22), notes: "" },
-    { id: uid(), title: "Vacuum baseboards and corners", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(35), notes: "" },
-    { id: uid(), title: "Check for moisture or mildew", room: "Basement", frequency: "monthly", interval: 1, last_completed: daysAgo(40), notes: "Inspect walls, corners, and dehumidifier" },
-    { id: uid(), title: "Deep clean floors and walls", room: "Basement", frequency: "quarterly", interval: 1, last_completed: daysAgo(70), notes: "Spot mop and wipe walls" },
-    { id: uid(), title: "Seasonal declutter and donate", room: "Basement", frequency: "custom", interval: 180, last_completed: daysAgo(120), notes: "Sort boxes and donate unused items" },
-
-    { id: uid(), title: "Wipe counters and sink", room: "Upstairs", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
-    { id: uid(), title: "Clean toilets, tubs, showers, and sinks", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "" },
-    { id: uid(), title: "Wash bath mats and towels", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(20), notes: "" },
-
-    { id: uid(), title: "Wipe table and chairs", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(5), notes: "" },
-    { id: uid(), title: "Dust surfaces and light fixture", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
-    { id: uid(), title: "Vacuum or mop floor", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
-    { id: uid(), title: "Wipe windows", room: "Dining Room", frequency: "weekly", interval: 1, last_completed: daysAgo(12), notes: "" },
-    { id: uid(), title: "Dust chandelier or light fixture", room: "Dining Room", frequency: "monthly", interval: 1, last_completed: daysAgo(21), notes: "" },
-    { id: uid(), title: "Vacuum baseboards and windowsills", room: "Dining Room", frequency: "monthly", interval: 1, last_completed: daysAgo(31), notes: "" },
-
-    { id: uid(), title: "Make the bed", room: "Upstairs", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
-    { id: uid(), title: "Put away clothes and toys", room: "Upstairs", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
-    { id: uid(), title: "Dust furniture and light fixtures", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(10), notes: "" },
-    { id: uid(), title: "Vacuum floor and under bed", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
-    { id: uid(), title: "Change and launder sheets", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
-    { id: uid(), title: "Wipe mirrors and smudges", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(11), notes: "" },
-    { id: uid(), title: "Sanitize high touch surfaces", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(29), notes: "Doorknobs, switches, drawer pulls" },
-    { id: uid(), title: "Launder pillow protectors and mattress pad", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(24), notes: "" },
-    { id: uid(), title: "Toy rotation and donate", room: "Upstairs", frequency: "custom", interval: 180, last_completed: daysAgo(140), notes: "Remove broken or unused toys" },
-
-    { id: uid(), title: "Wipe fingerprints from glass and screens", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "Use screen-safe cleaner" },
-    { id: uid(), title: "Dust shelves, consoles, and TV stand", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
-    { id: uid(), title: "Vacuum or mop floor", room: "Upstairs", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
-    { id: uid(), title: "Sanitize high touch surfaces", room: "Upstairs", frequency: "monthly", interval: 1, last_completed: daysAgo(30), notes: "Controllers, handles, switches" },
-
-    { id: uid(), title: "Wipe counters and sanitize sink", room: "Kitchen", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "Food contact surfaces" },
-    { id: uid(), title: "Wash dishes or run dishwasher", room: "Kitchen", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
-    { id: uid(), title: "Wipe appliance fronts and cabinet doors", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
-    { id: uid(), title: "Flush kitchen drain with boiling water", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(10), notes: "" },
-    { id: uid(), title: "Vent hood wipe exterior", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(13), notes: "" },
-    { id: uid(), title: "Vacuum or mop floor", room: "Kitchen", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "" },
-    { id: uid(), title: "Refrigerator quick purge and wipe shelves", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(20), notes: "Discard old items" },
-    { id: uid(), title: "Wash vent hood filters", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(35), notes: "" },
-    { id: uid(), title: "Wipe inside and outside of trash and recycling bins", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(32), notes: "" },
-    { id: uid(), title: "Scrub grout and backsplash", room: "Kitchen", frequency: "monthly", interval: 1, last_completed: daysAgo(33), notes: "" },
-    { id: uid(), title: "Organize and wipe pantry shelves", room: "Kitchen", frequency: "custom", interval: 180, last_completed: daysAgo(150), notes: "Remove items, wipe, restock" },
-    { id: uid(), title: "Deep clean oven", room: "Kitchen", frequency: "custom", interval: 180, last_completed: daysAgo(140), notes: "" },
-    { id: uid(), title: "Wipe kitchen ceiling and cabinet interiors", room: "Kitchen", frequency: "custom", interval: 180, last_completed: daysAgo(165), notes: "" },
-    { id: uid(), title: "Deep clean refrigerator and freezer", room: "Kitchen", frequency: "custom", interval: 365, last_completed: daysAgo(280), notes: "Wash bins and clean gasket" },
-    { id: uid(), title: "Pull out and clean behind or beneath appliances", room: "Kitchen", frequency: "custom", interval: 365, last_completed: daysAgo(310), notes: "" },
-
-    { id: uid(), title: "Clear lint trap and wipe machines", room: "Laundry Room", frequency: "weekly", interval: 1, last_completed: daysAgo(5), notes: "" },
-    { id: uid(), title: "Vacuum or mop floor", room: "Laundry Room", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
-    { id: uid(), title: "Wipe sink, counter, and detergent spills", room: "Laundry Room", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
-    { id: uid(), title: "Wipe inside and outside of trash and recycling bins", room: "Laundry Room", frequency: "monthly", interval: 1, last_completed: daysAgo(21), notes: "" },
-    { id: uid(), title: "Wipe doors, trim, and switch plates", room: "Laundry Room", frequency: "monthly", interval: 1, last_completed: daysAgo(29), notes: "" },
-    { id: uid(), title: "Wash filter on washing machine", room: "Laundry Room", frequency: "custom", interval: 180, last_completed: daysAgo(130), notes: "Per model instructions" },
-    { id: uid(), title: "Inspect hoses and connections", room: "Laundry Room", frequency: "custom", interval: 180, last_completed: daysAgo(155), notes: "Look for cracks or leaks" },
-    { id: uid(), title: "Clean dryer vent and exhaust", room: "Laundry Room", frequency: "custom", interval: 365, last_completed: daysAgo(260), notes: "Consider professional if long run" },
-
-    { id: uid(), title: "Quick tidy books, remotes, and blankets", room: "Living Room", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
-    { id: uid(), title: "Dust surfaces and light fixtures", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
-    { id: uid(), title: "Vacuum floors and rugs", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
-    { id: uid(), title: "Vacuum upholstery and cushions", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(10), notes: "Use upholstery attachment" },
-    { id: uid(), title: "Wipe mirrors and glass doors", room: "Living Room", frequency: "weekly", interval: 1, last_completed: daysAgo(11), notes: "" },
-    { id: uid(), title: "Vacuum baseboards and windowsills", room: "Living Room", frequency: "monthly", interval: 1, last_completed: daysAgo(28), notes: "" },
-
-    { id: uid(), title: "Make the bed", room: "Main Bedroom", frequency: "daily", interval: 1, last_completed: daysAgo(0), notes: "" },
-    { id: uid(), title: "Put away clothes", room: "Main Bedroom", frequency: "daily", interval: 1, last_completed: daysAgo(1), notes: "" },
-    { id: uid(), title: "Dust furniture and light fixtures", room: "Main Bedroom", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
-    { id: uid(), title: "Vacuum floor and under bed", room: "Main Bedroom", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "" },
-    { id: uid(), title: "Change and launder sheets", room: "Main Bedroom", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
-    { id: uid(), title: "Launder pillow protectors and mattress pad", room: "Main Bedroom", frequency: "monthly", interval: 1, last_completed: daysAgo(27), notes: "" },
-    { id: uid(), title: "Vacuum baseboards and windowsills", room: "Main Bedroom", frequency: "monthly", interval: 1, last_completed: daysAgo(31), notes: "" },
-    { id: uid(), title: "Rotate or flip mattress", room: "Main Bedroom", frequency: "custom", interval: 180, last_completed: daysAgo(160), notes: "" },
-    { id: uid(), title: "Vacuum mattress and bed frame crevices", room: "Main Bedroom", frequency: "custom", interval: 180, last_completed: daysAgo(175), notes: "" },
-
-    { id: uid(), title: "Dust desk, shelves, and electronics", room: "Office", frequency: "weekly", interval: 1, last_completed: daysAgo(8), notes: "Use dry cloth on monitors" },
-    { id: uid(), title: "Vacuum or mop floor", room: "Office", frequency: "weekly", interval: 1, last_completed: daysAgo(9), notes: "" },
-    { id: uid(), title: "Empty trash and shred or recycle paper", room: "Office", frequency: "weekly", interval: 1, last_completed: daysAgo(6), notes: "" },
-    { id: uid(), title: "Wipe keyboard, mouse, and switch plates", room: "Office", frequency: "monthly", interval: 1, last_completed: daysAgo(21), notes: "Use electronics-safe wipe" },
-    { id: uid(), title: "Wash guest bedding", room: "Office", frequency: "quarterly", interval: 1, last_completed: daysAgo(60), notes: "After guests or quarterly if staged" },
-    { id: uid(), title: "Declutter papers and cables", room: "Office", frequency: "quarterly", interval: 1, last_completed: daysAgo(95), notes: "" },
-
-    { id: uid(), title: "Sweep patio or entry", room: "Outside", frequency: "weekly", interval: 1, last_completed: daysAgo(7), notes: "" },
-    { id: uid(), title: "Tidy outdoor furniture", room: "Outside", frequency: "weekly", interval: 1, last_completed: daysAgo(12), notes: "" },
-    { id: uid(), title: "Remove leaves and debris", room: "Outside", frequency: "monthly", interval: 1, last_completed: daysAgo(26), notes: "" },
-    { id: uid(), title: "Check planters and outdoor storage", room: "Outside", frequency: "monthly", interval: 1, last_completed: daysAgo(33), notes: "" }
-  ],
-  stock: [
-    { id: uid(), name: "Paper towels", room: "Kitchen", in_stock: 0 },
-    { id: uid(), name: "Dish soap", room: "Kitchen", in_stock: 2 },
-    { id: uid(), name: "Dishwasher tabs", room: "Kitchen", in_stock: 4 },
-    { id: uid(), name: "Sponges", room: "Kitchen", in_stock: 2 },
-    { id: uid(), name: "Trash bags", room: "Laundry Room", in_stock: 2 },
-    { id: uid(), name: "Laundry detergent", room: "Laundry Room", in_stock: 3 },
-    { id: uid(), name: "All-purpose cleaner", room: "Laundry Room", in_stock: 1 },
-    { id: uid(), name: "Light bulbs", room: "Basement", in_stock: 2 },
-    { id: uid(), name: "Outdoor gloves", room: "Outside", in_stock: 1 }
-  ],
-  shopping: [
-    { id: uid(), name: "Paper towels", room: "Kitchen", checked: false, source: "stock" },
-    { id: uid(), name: "White vinegar", room: "Kitchen", checked: false, source: "manual" }
-  ]
+let appData = {
+  routines: [],
+  stock: [],
+  shopping: []
 };
 
-let appData = loadAppData();
 let filters = {
   today: "All",
   routines: "All",
   stock: "All",
   shopping: "All"
 };
+
 let toastTimer = null;
+let isLoading = true;
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => switchPanel(btn.dataset.panel));
 });
 
-renderAll();
+init();
 
-function uid() {
-  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
-  return "id-" + Math.random().toString(36).slice(2, 10);
+async function init() {
+  renderAll();
+  await loadAllFromSupabase();
+  renderAll();
 }
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
+async function loadAllFromSupabase() {
+  isLoading = true;
+  renderAll();
 
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
+  const [routinesRes, stockRes, shoppingRes] = await Promise.all([
+    supabase.from("routines").select("*").order("room").order("title"),
+    supabase.from("stock_items").select("*").order("room").order("name"),
+    supabase.from("shopping_items").select("*").order("checked").order("room").order("name")
+  ]);
 
-function diffDays(fromISO, toISO) {
-  const a = new Date(fromISO + "T00:00:00");
-  const b = new Date(toISO + "T00:00:00");
-  return Math.round((b - a) / 86400000);
-}
-
-function addDays(iso, n) {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function frequencyDays(freq, interval = 1) {
-  const i = Math.max(1, Number(interval) || 1);
-  if (freq === "daily") return 1 * i;
-  if (freq === "weekly") return 7 * i;
-  if (freq === "monthly") return 30 * i;
-  if (freq === "quarterly") return 90 * i;
-  if (freq === "custom") return i;
-  return 7;
-}
-
-function frequencyLabel(freq, interval = 1) {
-  if (freq === "custom") {
-    if (interval === 180) return "every 6 months";
-    if (interval === 365) return "yearly";
-    return `every ${interval} days`;
+  if (routinesRes.error || stockRes.error || shoppingRes.error) {
+    console.error(routinesRes.error || stockRes.error || shoppingRes.error);
+    showToast("failed to load data", "error");
+  } else {
+    appData.routines = routinesRes.data || [];
+    appData.stock = stockRes.data || [];
+    appData.shopping = shoppingRes.data || [];
   }
-  if (freq === "daily" && interval > 1) return `every ${interval} days`;
-  if (freq === "weekly" && interval > 1) return `every ${interval} weeks`;
-  if (freq === "monthly" && interval > 1) return `every ${interval} months`;
-  if (freq === "quarterly" && interval > 1) return `every ${interval * 3} months`;
-  if (freq === "quarterly") return "quarterly";
-  return freq;
-}
 
-function computeRoutineStatus(r) {
-  const base = r.last_completed || todayISO();
-  const dueDate = addDays(base, frequencyDays(r.frequency, r.interval));
-  const daysUntilDue = diffDays(todayISO(), dueDate);
-  let status = "upcoming";
-  if (daysUntilDue < 0) status = "overdue";
-  else if (daysUntilDue === 0) status = "due";
-  else if (daysUntilDue <= 3) status = "soon";
-  return { dueDate, daysUntilDue, status };
-}
-
-function loadAppData() {
-  try {
-    const stored = localStorage.getItem("the_keep_data");
-    if (!stored) {
-      localStorage.setItem("the_keep_data", JSON.stringify(SEED_DATA));
-      return structuredClone(SEED_DATA);
-    }
-    const parsed = JSON.parse(stored);
-    parsed.routines ??= [];
-    parsed.stock ??= [];
-    parsed.shopping ??= [];
-    return parsed;
-  } catch (e) {
-    return structuredClone(SEED_DATA);
-  }
-}
-
-function saveAppData() {
-  localStorage.setItem("the_keep_data", JSON.stringify(appData));
+  isLoading = false;
 }
 
 function switchPanel(name) {
@@ -747,6 +604,11 @@ function renderOverview() {
 }
 
 function renderToday() {
+  if (isLoading) {
+    document.getElementById("panel-today").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
   let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
   enriched = filterByRoom(enriched, "today");
 
@@ -823,6 +685,11 @@ function renderRoutineRow(r) {
 }
 
 function renderRoutines() {
+  if (isLoading) {
+    document.getElementById("panel-routines").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
   let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
   enriched = filterByRoom(enriched, "routines");
   enriched.sort((a, b) => a.room.localeCompare(b.room) || a.title.localeCompare(b.title));
@@ -914,6 +781,11 @@ function renderRoutineManageRow(r) {
 }
 
 function renderStock() {
+  if (isLoading) {
+    document.getElementById("panel-stock").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
   let items = filterByRoom(appData.stock, "stock");
   items.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
 
@@ -1002,6 +874,11 @@ function renderStockManageRow(item) {
 }
 
 function renderShopping() {
+  if (isLoading) {
+    document.getElementById("panel-shopping").innerHTML = `<div class="loading">loading…</div>`;
+    return;
+  }
+
   let active = filterByRoom(appData.shopping, "shopping").filter(i => !i.checked);
   let done = filterByRoom(appData.shopping, "shopping").filter(i => i.checked);
 
@@ -1053,7 +930,7 @@ function renderShoppingRow(item) {
       <div class="shop-head">
         <div>
           <div class="task-check">
-            <input class="checkbox" type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleShopping('${item.id}')">
+            <input class="checkbox" type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleShopping('${item.id}', ${item.checked ? "false" : "true"})">
             <div class="shop-title">${escapeHtml(item.name)}</div>
           </div>
           <div class="shop-sub">${escapeHtml(item.room)} · ${escapeHtml(item.source || "manual")}</div>
@@ -1067,27 +944,58 @@ function renderShoppingRow(item) {
   `;
 }
 
-function completeRoutine(id) {
-  const item = appData.routines.find(r => r.id === id);
-  if (!item) return;
-  item.last_completed = todayISO();
-  saveAppData();
-  renderAll();
-  showToast(`completed: ${item.title}`, "success");
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function deleteRoutine(id) {
-  const idx = appData.routines.findIndex(r => r.id === id);
-  if (idx < 0) return;
-  const item = appData.routines[idx];
-  if (!confirm(`Delete "${item.title}"?`)) return;
-  appData.routines.splice(idx, 1);
-  saveAppData();
-  renderAll();
-  showToast(`deleted: ${item.title}`, "success");
+function diffDays(fromISO, toISO) {
+  const a = new Date(fromISO + "T00:00:00");
+  const b = new Date(toISO + "T00:00:00");
+  return Math.round((b - a) / 86400000);
 }
 
-function addRoutine() {
+function addDays(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function frequencyDays(freq, interval = 1) {
+  const i = Math.max(1, Number(interval) || 1);
+  if (freq === "daily") return 1 * i;
+  if (freq === "weekly") return 7 * i;
+  if (freq === "monthly") return 30 * i;
+  if (freq === "quarterly") return 90 * i;
+  if (freq === "custom") return i;
+  return 7;
+}
+
+function frequencyLabel(freq, interval = 1) {
+  if (freq === "custom") {
+    if (interval === 180) return "every 6 months";
+    if (interval === 365) return "yearly";
+    return `every ${interval} days`;
+  }
+  if (freq === "daily" && interval > 1) return `every ${interval} days`;
+  if (freq === "weekly" && interval > 1) return `every ${interval} weeks`;
+  if (freq === "monthly" && interval > 1) return `every ${interval} months`;
+  if (freq === "quarterly" && interval > 1) return `every ${interval * 3} months`;
+  if (freq === "quarterly") return "quarterly";
+  return freq;
+}
+
+function computeRoutineStatus(r) {
+  const base = r.last_completed || todayISO();
+  const dueDate = addDays(base, frequencyDays(r.frequency, r.interval));
+  const daysUntilDue = diffDays(todayISO(), dueDate);
+  let status = "upcoming";
+  if (daysUntilDue < 0) status = "overdue";
+  else if (daysUntilDue === 0) status = "due";
+  else if (daysUntilDue <= 3) status = "soon";
+  return { dueDate, daysUntilDue, status };
+}
+
+async function addRoutine() {
   const title = document.getElementById("routineTitle").value.trim();
   const room = document.getElementById("routineRoom").value;
   const frequency = document.getElementById("routineFrequency").value;
@@ -1100,8 +1008,19 @@ function addRoutine() {
     return;
   }
 
-  appData.routines.push({ id: uid(), title, room, frequency, interval, last_completed, notes });
-  saveAppData();
+  const { data, error } = await supabase
+    .from("routines")
+    .insert([{ title, room, frequency, interval, last_completed, notes }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to save routine", "error");
+    return;
+  }
+
+  appData.routines.push(data);
   renderAll();
   showToast(`saved: ${title}`, "success");
 
@@ -1113,15 +1032,50 @@ function addRoutine() {
   document.getElementById("routineNotes").value = "";
 }
 
-function adjustStock(id, delta) {
-  const item = appData.stock.find(s => s.id === id);
+async function completeRoutine(id) {
+  const item = appData.routines.find(r => r.id === id);
   if (!item) return;
-  item.in_stock = Math.max(0, Number(item.in_stock || 0) + delta);
-  saveAppData();
+
+  const last_completed = todayISO();
+  const { data, error } = await supabase
+    .from("routines")
+    .update({ last_completed, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to update routine", "error");
+    return;
+  }
+
+  const idx = appData.routines.findIndex(r => r.id === id);
+  appData.routines[idx] = data;
   renderAll();
+  showToast(`completed: ${item.title}`, "success");
 }
 
-function addStockItem() {
+async function deleteRoutine(id) {
+  const idx = appData.routines.findIndex(r => r.id === id);
+  if (idx < 0) return;
+  const item = appData.routines[idx];
+  if (!confirm(`Delete "${item.title}"?`)) return;
+
+  const { error } = await supabase.from("routines").delete().eq("id", id);
+
+  if (error) {
+    console.error(error);
+    showToast("failed to delete routine", "error");
+    return;
+  }
+
+  appData.routines.splice(idx, 1);
+  renderAll();
+  showToast(`deleted: ${item.title}`, "success");
+}
+
+async function addStockItem() {
   const name = document.getElementById("stockName").value.trim();
   const room = document.getElementById("stockRoom").value;
   const in_stock = Math.max(0, parseInt(document.getElementById("stockCount").value, 10) || 0);
@@ -1131,8 +1085,19 @@ function addStockItem() {
     return;
   }
 
-  appData.stock.push({ id: uid(), name, room, in_stock });
-  saveAppData();
+  const { data, error } = await supabase
+    .from("stock_items")
+    .insert([{ name, room, in_stock }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to save item", "error");
+    return;
+  }
+
+  appData.stock.push(data);
   renderAll();
   showToast(`saved: ${name}`, "success");
 
@@ -1141,18 +1106,50 @@ function addStockItem() {
   document.getElementById("stockCount").value = "1";
 }
 
-function deleteStockItem(id) {
+async function adjustStock(id, delta) {
+  const item = appData.stock.find(s => s.id === id);
+  if (!item) return;
+
+  const in_stock = Math.max(0, Number(item.in_stock || 0) + delta);
+
+  const { data, error } = await supabase
+    .from("stock_items")
+    .update({ in_stock, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to update stock", "error");
+    return;
+  }
+
+  const idx = appData.stock.findIndex(s => s.id === id);
+  appData.stock[idx] = data;
+  renderAll();
+}
+
+async function deleteStockItem(id) {
   const idx = appData.stock.findIndex(s => s.id === id);
   if (idx < 0) return;
   const item = appData.stock[idx];
   if (!confirm(`Delete "${item.name}" from stock?`)) return;
+
+  const { error } = await supabase.from("stock_items").delete().eq("id", id);
+
+  if (error) {
+    console.error(error);
+    showToast("failed to delete item", "error");
+    return;
+  }
+
   appData.stock.splice(idx, 1);
-  saveAppData();
   renderAll();
   showToast(`deleted: ${item.name}`, "success");
 }
 
-function addStockToShopping(id) {
+async function addStockToShopping(id) {
   const item = appData.stock.find(s => s.id === id);
   if (!item) return;
 
@@ -1162,23 +1159,34 @@ function addStockToShopping(id) {
     !s.checked
   );
 
-  if (!exists) {
-    appData.shopping.push({
-      id: uid(),
+  if (exists) {
+    showToast("already on shopping list", "error");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("shopping_items")
+    .insert([{
       name: item.name,
       room: item.room,
       checked: false,
       source: "stock"
-    });
-    saveAppData();
-    renderAll();
-    showToast(`added to shopping: ${item.name}`, "success");
-  } else {
-    showToast("already on shopping list", "error");
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to add shopping item", "error");
+    return;
   }
+
+  appData.shopping.push(data);
+  renderAll();
+  showToast(`added to shopping: ${item.name}`, "success");
 }
 
-function addShoppingItem() {
+async function addShoppingItem() {
   const name = document.getElementById("shopName").value.trim();
   const room = document.getElementById("shopRoom").value;
 
@@ -1187,15 +1195,24 @@ function addShoppingItem() {
     return;
   }
 
-  appData.shopping.push({
-    id: uid(),
-    name,
-    room,
-    checked: false,
-    source: "manual"
-  });
+  const { data, error } = await supabase
+    .from("shopping_items")
+    .insert([{
+      name,
+      room,
+      checked: false,
+      source: "manual"
+    }])
+    .select()
+    .single();
 
-  saveAppData();
+  if (error) {
+    console.error(error);
+    showToast("failed to save shopping item", "error");
+    return;
+  }
+
+  appData.shopping.push(data);
   renderAll();
   showToast(`saved: ${name}`, "success");
 
@@ -1203,20 +1220,41 @@ function addShoppingItem() {
   document.getElementById("shopRoom").value = ROOMS[0];
 }
 
-function toggleShopping(id) {
-  const item = appData.shopping.find(s => s.id === id);
-  if (!item) return;
-  item.checked = !item.checked;
-  saveAppData();
+async function toggleShopping(id, nextChecked) {
+  const idx = appData.shopping.findIndex(s => s.id === id);
+  if (idx < 0) return;
+
+  const { data, error } = await supabase
+    .from("shopping_items")
+    .update({ checked: nextChecked, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    showToast("failed to update shopping item", "error");
+    return;
+  }
+
+  appData.shopping[idx] = data;
   renderAll();
 }
 
-function deleteShoppingItem(id) {
+async function deleteShoppingItem(id) {
   const idx = appData.shopping.findIndex(s => s.id === id);
   if (idx < 0) return;
   const item = appData.shopping[idx];
+
+  const { error } = await supabase.from("shopping_items").delete().eq("id", id);
+
+  if (error) {
+    console.error(error);
+    showToast("failed to delete shopping item", "error");
+    return;
+  }
+
   appData.shopping.splice(idx, 1);
-  saveAppData();
   renderAll();
   showToast(`deleted: ${item.name}`, "success");
 }
