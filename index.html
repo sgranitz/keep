@@ -605,6 +605,8 @@ window.addStockToShopping = addStockToShopping;
 window.addShoppingItem = addShoppingItem;
 window.toggleShopping = toggleShopping;
 window.deleteShoppingItem = deleteShoppingItem;
+window.addRoom = addRoom;
+window.deleteRoom = deleteRoom;
 window.signInWithMagicLink = signInWithMagicLink;
 window.signOut = signOut;
 
@@ -790,6 +792,18 @@ function switchPanel(name) {
 
 function roomName(roomId) {
   return rooms.find(r => r.id === roomId)?.name || "Unknown room";
+}
+
+function roomUsageCounts(roomId) {
+  return {
+    routines: appData.routines.filter(r => r.room_id === roomId).length,
+    stock: appData.stock.filter(s => s.room_id === roomId).length,
+    shopping: appData.shopping.filter(s => s.room_id === roomId).length
+  };
+}
+
+function nextRoomSortOrder() {
+  return (rooms.length ? Math.max(...rooms.map(r => Number(r.sort_order) || 0)) : 0) + 1;
 }
 
 function filterByRoom(items, panelName) {
@@ -1009,6 +1023,39 @@ function renderRoutines() {
           </div>
           <button class="btn-primary" onclick="addRoutine()">save routine</button>`}
         </div>
+
+        <div class="section">
+          <div class="section-label">rooms</div>
+          <div class="field">
+            <label for="roomName">new room</label>
+            <input class="input" id="roomName" type="text" placeholder="e.g. Garage">
+          </div>
+          <button class="btn-primary" onclick="addRoom()">add room</button>
+
+          <div class="stack" style="margin-top:14px;">
+            ${rooms.length ? rooms.map(room => {
+              const usage = roomUsageCounts(room.id);
+              const used = usage.routines + usage.stock + usage.shopping;
+
+              return `
+                <div class="task-row">
+                  <div class="task-head">
+                    <div>
+                      <div class="task-title">${escapeHtml(room.name)}</div>
+                      <div class="task-sub">
+                        ${usage.routines} routines · ${usage.stock} stock · ${usage.shopping} shopping
+                      </div>
+                    </div>
+                    <div class="badge ${used ? "ok" : "done"}">${used ? "in use" : "empty"}</div>
+                  </div>
+                  <div class="row-actions">
+                    <button class="btn-inline danger" onclick="deleteRoom('${room.id}')">delete</button>
+                  </div>
+                </div>
+              `;
+            }).join("") : `<div class="empty">no rooms yet</div>`}
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -1139,6 +1186,85 @@ function renderStockManageRow(item) {
       </div>
     </div>
   `;
+}
+
+async function addRoom() {
+  const input = document.getElementById("roomName");
+  const name = input?.value.trim();
+
+  if (!name) {
+    showToast("enter a room name", "error");
+    return;
+  }
+
+  const exists = rooms.some(r => r.name.trim().toLowerCase() === name.toLowerCase());
+  if (exists) {
+    showToast("room already exists", "error");
+    return;
+  }
+
+  try {
+    const { data, error } = await db
+      .from("rooms")
+      .insert([{
+        name,
+        sort_order: nextRoomSortOrder(),
+        user_id: currentUser.id
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    rooms.push(data);
+    rooms.sort((a, b) =>
+      (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
+      a.name.localeCompare(b.name)
+    );
+
+    input.value = "";
+    renderAll();
+    showToast(`added room: ${name}`, "success");
+  } catch (err) {
+    console.error("addRoom error:", err);
+    showToast("failed to add room", "error");
+  }
+}
+
+async function deleteRoom(roomId) {
+  const room = rooms.find(r => r.id === roomId);
+  if (!room) return;
+
+  const usage = roomUsageCounts(roomId);
+  const totalUsage = usage.routines + usage.stock + usage.shopping;
+
+  if (totalUsage > 0) {
+    showToast("room is still in use", "error");
+    return;
+  }
+
+  if (!confirm(`Delete room "${room.name}"?`)) return;
+
+  try {
+    const { error } = await db
+      .from("rooms")
+      .delete()
+      .eq("id", roomId);
+
+    if (error) throw error;
+
+    rooms = rooms.filter(r => r.id !== roomId);
+
+    for (const key of Object.keys(filters)) {
+      if (filters[key] === roomId) filters[key] = "All";
+    }
+
+    renderAll();
+    showToast(`deleted room: ${room.name}`, "success");
+  } catch (err) {
+    console.error("deleteRoom error:", err);
+    showToast("failed to delete room", "error");
+  }
 }
 
 function renderShopping() {
