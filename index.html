@@ -581,17 +581,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-const ROOMS = [
-  "Kitchen",
-  "Dining Room",
-  "Living Room",
-  "Main Bedroom",
-  "Office",
-  "Laundry Room",
-  "Basement",
-  "Upstairs",
-  "Outside"
-];
+let rooms = [];
 
 let appData = { routines: [], stock: [], shopping: [] };
 let filters = { today: "All", routines: "All", stock: "All", shopping: "All" };
@@ -739,6 +729,7 @@ async function signOut() {
 async function loadAllFromSupabase() {
   if (!currentUser) {
     appData = { routines: [], stock: [], shopping: [] };
+    rooms = [];
     isLoading = false;
     renderAll();
     return;
@@ -754,28 +745,32 @@ async function loadAllFromSupabase() {
       );
 
     const fetchAll = Promise.all([
-      db.from("routines").select("*").order("room").order("title"),
-      db.from("stock_items").select("*").order("room").order("name"),
-      db.from("shopping_items").select("*").order("checked").order("room").order("name")
+      db.from("rooms").select("*").order("sort_order").order("name"),
+      db.from("routines").select("*").order("title"),
+      db.from("stock_items").select("*").order("name"),
+      db.from("shopping_items").select("*").order("checked").order("name")
     ]);
 
-    const [routinesRes, stockRes, shoppingRes] = await Promise.race([
+    const [roomsRes, routinesRes, stockRes, shoppingRes] = await Promise.race([
       fetchAll,
       timeout(10000)
     ]);
 
-    if (routinesRes.error || stockRes.error || shoppingRes.error) {
+    if (roomsRes.error || routinesRes.error || stockRes.error || shoppingRes.error) {
+      console.error("rooms error:", roomsRes.error);
       console.error("routines error:", routinesRes.error);
       console.error("stock error:", stockRes.error);
       console.error("shopping error:", shoppingRes.error);
       throw new Error("failed to load data");
     }
 
+    rooms = roomsRes.data || [];
     appData.routines = routinesRes.data || [];
     appData.stock = stockRes.data || [];
     appData.shopping = shoppingRes.data || [];
   } catch (err) {
     console.error("loadAllFromSupabase error:", err);
+    rooms = [];
     appData = { routines: [], stock: [], shopping: [] };
     showToast("failed to load data", "error");
   } finally {
@@ -793,18 +788,26 @@ function switchPanel(name) {
   });
 }
 
+function roomName(roomId) {
+  return rooms.find(r => r.id === roomId)?.name || "Unknown room";
+}
+
 function filterByRoom(items, panelName) {
-  const room = filters[panelName];
-  if (!room || room === "All") return items;
-  return items.filter(x => x.room === room);
+  const roomId = filters[panelName];
+  if (!roomId || roomId === "All") return items;
+  return items.filter(x => x.room_id === roomId);
 }
 
 function renderRoomFilters(panelName) {
-  const values = ["All", ...ROOMS];
+  const values = [{ id: "All", name: "All" }, ...rooms];
+
   return `
     <div class="filter-row">
       ${values.map(room => `
-        <button class="filter-btn ${filters[panelName] === room ? "active" : ""}" onclick="setRoomFilter('${panelName}', '${escapeJs(room)}')">${room}</button>
+        <button class="filter-btn ${filters[panelName] === room.id ? "active" : ""}"
+          onclick="setRoomFilter('${panelName}', '${escapeJs(room.id)}')">
+          ${escapeHtml(room.name)}
+        </button>
       `).join("")}
     </div>
   `;
@@ -854,8 +857,19 @@ function renderToday() {
   let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
   enriched = filterByRoom(enriched, "today");
 
-  const overdue = enriched.filter(r => r.status === "overdue");
-  const due = enriched.filter(r => r.status === "due");
+  const overdue = enriched
+    .filter(r => r.status === "overdue")
+    .sort((a, b) =>
+      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+      a.title.localeCompare(b.title)
+    );
+  
+  const due = enriched
+    .filter(r => r.status === "due")
+    .sort((a, b) =>
+      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+      a.title.localeCompare(b.title)
+    );
   const upcoming = enriched
     .filter(r => r.status === "soon" || r.status === "upcoming")
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
@@ -918,7 +932,7 @@ function renderRoutineRow(r) {
             <input class="checkbox" type="checkbox" onchange="completeRoutine('${r.id}')">
             <div class="task-title">${escapeHtml(r.title)}</div>
           </div>
-          <div class="task-sub">${escapeHtml(r.room)} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}</div>
+          <div class="task-sub">${escapeHtml(roomName(r.room_id))} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}</div>
         </div>
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
@@ -936,7 +950,10 @@ function renderRoutines() {
 
   let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
   enriched = filterByRoom(enriched, "routines");
-  enriched.sort((a, b) => a.room.localeCompare(b.room) || a.title.localeCompare(b.title));
+  enriched.sort((a, b) =>
+    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+    a.title.localeCompare(b.title)
+  );
 
   document.getElementById("panel-routines").innerHTML = `
     ${renderRoomFilters("routines")}
@@ -953,6 +970,7 @@ function renderRoutines() {
       <div>
         <div class="section">
           <div class="section-label">add routine</div>
+          ${rooms.length === 0 ? `<div class="empty">add rooms first</div>` : `
           <div class="field">
             <label for="routineTitle">title</label>
             <input class="input" id="routineTitle" type="text" placeholder="e.g. vacuum living room">
@@ -961,7 +979,7 @@ function renderRoutines() {
             <div class="field">
               <label for="routineRoom">room</label>
               <select class="select" id="routineRoom">
-                ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+                ${rooms.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("")}
               </select>
             </div>
             <div class="field">
@@ -989,7 +1007,7 @@ function renderRoutines() {
             <label for="routineNotes">notes</label>
             <textarea class="textarea" id="routineNotes" placeholder="Optional notes..."></textarea>
           </div>
-          <button class="btn-primary" onclick="addRoutine()">save routine</button>
+          <button class="btn-primary" onclick="addRoutine()">save routine</button>`}
         </div>
       </div>
     </div>
@@ -1012,7 +1030,7 @@ function renderRoutineManageRow(r) {
       <div class="task-head">
         <div>
           <div class="task-title">${escapeHtml(r.title)}</div>
-          <div class="task-sub">${escapeHtml(r.room)} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}${r.notes ? ` · ${escapeHtml(r.notes)}` : ""}</div>
+          <div class="task-sub">${escapeHtml(roomName(r.room_id))} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}${r.notes ? ` · ${escapeHtml(r.notes)}` : ""}</div>
         </div>
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
@@ -1033,7 +1051,10 @@ function renderStock() {
   }
 
   let items = filterByRoom(appData.stock, "stock");
-  items.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+  items.sort((a, b) =>
+    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+    a.name.localeCompare(b.name)
+  );
 
   document.getElementById("panel-stock").innerHTML = `
     ${renderRoomFilters("stock")}
@@ -1050,6 +1071,7 @@ function renderStock() {
       <div>
         <div class="section">
           <div class="section-label">add item</div>
+          ${rooms.length === 0 ? `<div class="empty">add rooms first</div>` : `
           <div class="field">
             <label for="stockName">item</label>
             <input class="input" id="stockName" type="text" placeholder="e.g. paper towels">
@@ -1058,7 +1080,7 @@ function renderStock() {
             <div class="field">
               <label for="stockRoom">room</label>
               <select class="select" id="stockRoom">
-                ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+                ${rooms.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("")}
               </select>
             </div>
             <div class="field">
@@ -1066,7 +1088,7 @@ function renderStock() {
               <input class="number-input" id="stockCount" type="number" min="0" step="1" value="1">
             </div>
           </div>
-          <button class="btn-primary" onclick="addStockItem()">save item</button>
+          <button class="btn-primary" onclick="addStockItem()">save item</button>`}
         </div>
       </div>
     </div>
@@ -1080,7 +1102,7 @@ function renderStockCardCompact(item) {
       <div class="stock-head">
         <div>
           <div class="stock-title">${escapeHtml(item.name)}</div>
-          <div class="stock-sub">${escapeHtml(item.room)} · in stock ${item.in_stock}</div>
+          <div class="stock-sub">${escapeHtml(roomName(item.room_id))} · in stock ${item.in_stock}</div>
         </div>
         <div class="badge ${empty ? "low" : "ok"}">${empty ? "out" : "stocked"}</div>
       </div>
@@ -1098,7 +1120,7 @@ function renderStockManageRow(item) {
       <div class="stock-head">
         <div>
           <div class="stock-title">${escapeHtml(item.name)}</div>
-          <div class="stock-sub">${escapeHtml(item.room)} · in stock ${item.in_stock}</div>
+          <div class="stock-sub">${escapeHtml(roomName(item.room_id))} · in stock ${item.in_stock}</div>
         </div>
         <div class="badge ${empty ? "low" : "ok"}">${empty ? "out of stock" : "stocked"}</div>
       </div>
@@ -1130,8 +1152,15 @@ function renderShopping() {
   let active = filterByRoom(appData.shopping, "shopping").filter(i => !i.checked);
   let done = filterByRoom(appData.shopping, "shopping").filter(i => i.checked);
 
-  active.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
-  done.sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name));
+  active.sort((a, b) =>
+    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+    a.name.localeCompare(b.name)
+  );
+
+  done.sort((a, b) =>
+    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+    a.name.localeCompare(b.name)
+  );
 
   document.getElementById("panel-shopping").innerHTML = `
     ${renderRoomFilters("shopping")}
@@ -1155,6 +1184,7 @@ function renderShopping() {
       <div>
         <div class="section">
           <div class="section-label">add shopping item</div>
+          ${rooms.length === 0 ? `<div class="empty">add rooms first</div>` : `
           <div class="field">
             <label for="shopName">item</label>
             <input class="input" id="shopName" type="text" placeholder="e.g. dish soap">
@@ -1162,10 +1192,10 @@ function renderShopping() {
           <div class="field">
             <label for="shopRoom">room</label>
             <select class="select" id="shopRoom">
-              ${ROOMS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+              ${rooms.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("")}
             </select>
           </div>
-          <button class="btn-primary" onclick="addShoppingItem()">save item</button>
+          <button class="btn-primary" onclick="addShoppingItem()">save item</button>`}
         </div>
       </div>
     </div>
@@ -1181,7 +1211,7 @@ function renderShoppingRow(item) {
             <input class="checkbox" type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleShopping('${item.id}', ${item.checked ? "false" : "true"})">
             <div class="shop-title">${escapeHtml(item.name)}</div>
           </div>
-          <div class="shop-sub">${escapeHtml(item.room)} · ${escapeHtml(item.source || "manual")}</div>
+          <div class="shop-sub">${escapeHtml(roomName(item.room_id))} · ${escapeHtml(item.source || "manual")}</div>
         </div>
         <div class="badge ${item.checked ? "done" : "ok"}">${item.checked ? "done" : "active"}</div>
       </div>
@@ -1245,13 +1275,13 @@ function computeRoutineStatus(r) {
 
 async function addRoutine() {
   const title = document.getElementById("routineTitle").value.trim();
-  const room = document.getElementById("routineRoom").value;
+  const room_id = document.getElementById("routineRoom").value;
   const frequency = document.getElementById("routineFrequency").value;
   const interval = Math.max(1, parseInt(document.getElementById("routineInterval").value, 10) || 1);
   const last_completed = document.getElementById("routineLastCompleted").value || todayISO();
   const notes = document.getElementById("routineNotes").value.trim();
 
-  if (!title || !room) {
+  if (!title || !room_id) {
     showToast("enter title and room", "error");
     return;
   }
@@ -1260,7 +1290,7 @@ async function addRoutine() {
     .from("routines")
     .insert([{
       title,
-      room,
+      room_id,
       frequency,
       interval,
       last_completed,
@@ -1281,7 +1311,7 @@ async function addRoutine() {
   showToast(`saved: ${title}`, "success");
 
   document.getElementById("routineTitle").value = "";
-  document.getElementById("routineRoom").value = ROOMS[0];
+  document.getElementById("routineRoom").value = rooms[0]?.id || "";
   document.getElementById("routineFrequency").value = "weekly";
   document.getElementById("routineInterval").value = "1";
   document.getElementById("routineLastCompleted").value = todayISO();
@@ -1333,10 +1363,10 @@ async function deleteRoutine(id) {
 
 async function addStockItem() {
   const name = document.getElementById("stockName").value.trim();
-  const room = document.getElementById("stockRoom").value;
+  const room_id = document.getElementById("stockRoom").value;
   const in_stock = Math.max(0, parseInt(document.getElementById("stockCount").value, 10) || 0);
 
-  if (!name || !room) {
+  if (!name || !room_id) {
     showToast("enter item and room", "error");
     return;
   }
@@ -1345,7 +1375,7 @@ async function addStockItem() {
     .from("stock_items")
     .insert([{
       name,
-      room,
+      room_id,
       in_stock,
       user_id: currentUser.id
     }])
@@ -1363,7 +1393,7 @@ async function addStockItem() {
   showToast(`saved: ${name}`, "success");
 
   document.getElementById("stockName").value = "";
-  document.getElementById("stockRoom").value = ROOMS[0];
+  document.getElementById("stockRoom").value = rooms[0]?.id || "";
   document.getElementById("stockCount").value = "1";
 }
 
@@ -1416,7 +1446,7 @@ async function addStockToShopping(id) {
 
   const exists = appData.shopping.some(s =>
     s.name.toLowerCase() === item.name.toLowerCase() &&
-    s.room === item.room &&
+    s.room_id === item.room_id &&
     !s.checked
   );
 
@@ -1429,7 +1459,7 @@ async function addStockToShopping(id) {
     .from("shopping_items")
     .insert([{
       name: item.name,
-      room: item.room,
+      room_id: item.room_id,
       checked: false,
       source: "stock",
       user_id: currentUser.id
@@ -1450,10 +1480,10 @@ async function addStockToShopping(id) {
 
 async function addShoppingItem() {
   const name = document.getElementById("shopName").value.trim();
-  const room = document.getElementById("shopRoom").value;
+  const room_id = document.getElementById("shopRoom").value;
 
-  if (!name) {
-    showToast("enter an item", "error");
+  if (!name || !room_id) {
+    showToast("enter an item and room", "error");
     return;
   }
 
@@ -1461,7 +1491,7 @@ async function addShoppingItem() {
     .from("shopping_items")
     .insert([{
       name,
-      room,
+      room_id,
       checked: false,
       source: "manual",
       user_id: currentUser.id
@@ -1480,7 +1510,7 @@ async function addShoppingItem() {
   showToast(`saved: ${name}`, "success");
 
   document.getElementById("shopName").value = "";
-  document.getElementById("shopRoom").value = ROOMS[0];
+  document.getElementById("shopRoom").value = rooms[0]?.id || "";
 }
 
 async function toggleShopping(id, nextChecked) {
