@@ -582,13 +582,14 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 let rooms = [];
-
 let appData = { routines: [], stock: [], shopping: [] };
 let filters = { today: "All", routines: "All", stock: "All", shopping: "All" };
 let toastTimer = null;
 let isLoading = true;
 let currentUser = null;
 let sessionReady = false;
+let initialAuthResolved = false;
+let activeLoadPromise = null;
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => switchPanel(btn.dataset.panel));
@@ -627,33 +628,43 @@ async function restoreSession() {
 
     if (currentUser) {
       showSignedIn();
-      await loadAllFromSupabase();
+      await loadAllFromSupabase({ silent: true });
     } else {
       appData = { routines: [], stock: [], shopping: [] };
+      rooms = [];
       showSignedOut();
       renderAll();
     }
+
+    initialAuthResolved = true;
   } catch (err) {
     console.error("restoreSession error:", err);
     currentUser = null;
     sessionReady = true;
     appData = { routines: [], stock: [], shopping: [] };
+    rooms = [];
     showSignedOut();
     renderAll();
+    initialAuthResolved = true;
   }
 }
 
 function bindAuthListener() {
-  db.auth.onAuthStateChange(async (_event, session) => {
+  db.auth.onAuthStateChange(async (event, session) => {
     try {
       currentUser = session?.user ?? null;
       sessionReady = true;
 
+      if (!initialAuthResolved && event === "INITIAL_SESSION") {
+        return;
+      }
+
       if (currentUser) {
         showSignedIn();
-        await loadAllFromSupabase();
+        await loadAllFromSupabase({ silent: true });
       } else {
         appData = { routines: [], stock: [], shopping: [] };
+        rooms = [];
         isLoading = false;
         showSignedOut();
         renderAll();
@@ -661,6 +672,7 @@ function bindAuthListener() {
     } catch (err) {
       console.error("auth state change error:", err);
       appData = { routines: [], stock: [], shopping: [] };
+      rooms = [];
       isLoading = false;
       showSignedOut();
       renderAll();
@@ -717,6 +729,7 @@ async function signOut() {
 
     currentUser = null;
     appData = { routines: [], stock: [], shopping: [] };
+    rooms = [];
     isLoading = false;
 
     showSignedOut();
@@ -728,57 +741,67 @@ async function signOut() {
   }
 }
 
-async function loadAllFromSupabase() {
-  if (!currentUser) {
-    appData = { routines: [], stock: [], shopping: [] };
-    rooms = [];
-    isLoading = false;
-    renderAll();
-    return;
-  }
+async function loadAllFromSupabase({ silent = false } = {}) {
+  if (activeLoadPromise) return activeLoadPromise;
 
-  isLoading = true;
-  renderAll();
-
-  try {
-    const timeout = (ms) =>
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("request timeout")), ms)
-      );
-
-    const fetchAll = Promise.all([
-      db.from("rooms").select("*").order("sort_order").order("name"),
-      db.from("routines").select("*").order("title"),
-      db.from("stock_items").select("*").order("name"),
-      db.from("shopping_items").select("*").order("checked").order("name")
-    ]);
-
-    const [roomsRes, routinesRes, stockRes, shoppingRes] = await Promise.race([
-      fetchAll,
-      timeout(10000)
-    ]);
-
-    if (roomsRes.error || routinesRes.error || stockRes.error || shoppingRes.error) {
-      console.error("rooms error:", roomsRes.error);
-      console.error("routines error:", routinesRes.error);
-      console.error("stock error:", stockRes.error);
-      console.error("shopping error:", shoppingRes.error);
-      throw new Error("failed to load data");
+  activeLoadPromise = (async () => {
+    if (!currentUser) {
+      appData = { routines: [], stock: [], shopping: [] };
+      rooms = [];
+      isLoading = false;
+      renderAll();
+      return;
     }
 
-    rooms = roomsRes.data || [];
-    appData.routines = routinesRes.data || [];
-    appData.stock = stockRes.data || [];
-    appData.shopping = shoppingRes.data || [];
-  } catch (err) {
-    console.error("loadAllFromSupabase error:", err);
-    rooms = [];
-    appData = { routines: [], stock: [], shopping: [] };
-    showToast("failed to load data", "error");
-  } finally {
-    isLoading = false;
+    isLoading = true;
     renderAll();
-  }
+
+    try {
+      const timeout = (ms) =>
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("request timeout")), ms)
+        );
+
+      const fetchAll = Promise.all([
+        db.from("rooms").select("*").order("sort_order").order("name"),
+        db.from("routines").select("*").order("title"),
+        db.from("stock_items").select("*").order("name"),
+        db.from("shopping_items").select("*").order("checked").order("name")
+      ]);
+
+      const [roomsRes, routinesRes, stockRes, shoppingRes] = await Promise.race([
+        fetchAll,
+        timeout(10000)
+      ]);
+
+      if (roomsRes.error || routinesRes.error || stockRes.error || shoppingRes.error) {
+        console.error("rooms error:", roomsRes.error);
+        console.error("routines error:", routinesRes.error);
+        console.error("stock error:", stockRes.error);
+        console.error("shopping error:", shoppingRes.error);
+        throw new Error("failed to load data");
+      }
+
+      rooms = roomsRes.data || [];
+      appData.routines = routinesRes.data || [];
+      appData.stock = stockRes.data || [];
+      appData.shopping = shoppingRes.data || [];
+    } catch (err) {
+      console.error("loadAllFromSupabase error:", err);
+      rooms = [];
+      appData = { routines: [], stock: [], shopping: [] };
+
+      if (!silent) {
+        showToast("failed to load data", "error");
+      }
+    } finally {
+      isLoading = false;
+      renderAll();
+      activeLoadPromise = null;
+    }
+  })();
+
+  return activeLoadPromise;
 }
 
 function switchPanel(name) {
@@ -877,20 +900,36 @@ function renderToday() {
       roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
       a.title.localeCompare(b.title)
     );
-  
+
   const due = enriched
     .filter(r => r.status === "due")
     .sort((a, b) =>
       roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
       a.title.localeCompare(b.title)
     );
+
   const upcoming = enriched
     .filter(r => r.status === "soon" || r.status === "upcoming")
-    .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+    .sort((a, b) =>
+      a.daysUntilDue - b.daysUntilDue ||
+      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+      a.title.localeCompare(b.title)
+    )
     .slice(0, 8);
 
-  const outOfStock = filterByRoom(appData.stock, "today").filter(s => Number(s.in_stock) === 0);
-  const shopping = filterByRoom(appData.shopping, "today").filter(i => !i.checked);
+  const outOfStock = filterByRoom(appData.stock, "today")
+    .filter(s => Number(s.in_stock) === 0)
+    .sort((a, b) =>
+      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+      a.name.localeCompare(b.name)
+    );
+
+  const shopping = filterByRoom(appData.shopping, "today")
+    .filter(i => !i.checked)
+    .sort((a, b) =>
+      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
+      a.name.localeCompare(b.name)
+    );
 
   document.getElementById("panel-today").innerHTML = `
     ${renderRoomFilters("today")}
@@ -1186,85 +1225,6 @@ function renderStockManageRow(item) {
       </div>
     </div>
   `;
-}
-
-async function addRoom() {
-  const input = document.getElementById("roomName");
-  const name = input?.value.trim();
-
-  if (!name) {
-    showToast("enter a room name", "error");
-    return;
-  }
-
-  const exists = rooms.some(r => r.name.trim().toLowerCase() === name.toLowerCase());
-  if (exists) {
-    showToast("room already exists", "error");
-    return;
-  }
-
-  try {
-    const { data, error } = await db
-      .from("rooms")
-      .insert([{
-        name,
-        sort_order: nextRoomSortOrder(),
-        user_id: currentUser.id
-      }])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    rooms.push(data);
-    rooms.sort((a, b) =>
-      (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
-      a.name.localeCompare(b.name)
-    );
-
-    input.value = "";
-    renderAll();
-    showToast(`added room: ${name}`, "success");
-  } catch (err) {
-    console.error("addRoom error:", err);
-    showToast("failed to add room", "error");
-  }
-}
-
-async function deleteRoom(roomId) {
-  const room = rooms.find(r => r.id === roomId);
-  if (!room) return;
-
-  const usage = roomUsageCounts(roomId);
-  const totalUsage = usage.routines + usage.stock + usage.shopping;
-
-  if (totalUsage > 0) {
-    showToast("room is still in use", "error");
-    return;
-  }
-
-  if (!confirm(`Delete room "${room.name}"?`)) return;
-
-  try {
-    const { error } = await db
-      .from("rooms")
-      .delete()
-      .eq("id", roomId);
-
-    if (error) throw error;
-
-    rooms = rooms.filter(r => r.id !== roomId);
-
-    for (const key of Object.keys(filters)) {
-      if (filters[key] === roomId) filters[key] = "All";
-    }
-
-    renderAll();
-    showToast(`deleted room: ${room.name}`, "success");
-  } catch (err) {
-    console.error("deleteRoom error:", err);
-    showToast("failed to delete room", "error");
-  }
 }
 
 function renderShopping() {
@@ -1676,6 +1636,85 @@ async function deleteShoppingItem(id) {
   appData.shopping.splice(idx, 1);
   renderAll();
   showToast(`deleted: ${item.name}`, "success");
+}
+
+async function addRoom() {
+  const input = document.getElementById("roomName");
+  const name = input?.value.trim();
+
+  if (!name) {
+    showToast("enter a room name", "error");
+    return;
+  }
+
+  const exists = rooms.some(r => r.name.trim().toLowerCase() === name.toLowerCase());
+  if (exists) {
+    showToast("room already exists", "error");
+    return;
+  }
+
+  try {
+    const { data, error } = await db
+      .from("rooms")
+      .insert([{
+        name,
+        sort_order: nextRoomSortOrder(),
+        user_id: currentUser.id
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    rooms.push(data);
+    rooms.sort((a, b) =>
+      (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
+      a.name.localeCompare(b.name)
+    );
+
+    input.value = "";
+    renderAll();
+    showToast(`added room: ${name}`, "success");
+  } catch (err) {
+    console.error("addRoom error:", err);
+    showToast("failed to add room", "error");
+  }
+}
+
+async function deleteRoom(roomId) {
+  const room = rooms.find(r => r.id === roomId);
+  if (!room) return;
+
+  const usage = roomUsageCounts(roomId);
+  const totalUsage = usage.routines + usage.stock + usage.shopping;
+
+  if (totalUsage > 0) {
+    showToast("room is still in use", "error");
+    return;
+  }
+
+  if (!confirm(`Delete room "${room.name}"?`)) return;
+
+  try {
+    const { error } = await db
+      .from("rooms")
+      .delete()
+      .eq("id", roomId);
+
+    if (error) throw error;
+
+    rooms = rooms.filter(r => r.id !== roomId);
+
+    for (const key of Object.keys(filters)) {
+      if (filters[key] === roomId) filters[key] = "All";
+    }
+
+    renderAll();
+    showToast(`deleted room: ${room.name}`, "success");
+  } catch (err) {
+    console.error("deleteRoom error:", err);
+    showToast("failed to delete room", "error");
+  }
 }
 
 function showToast(msg, type = "") {
