@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>the keep</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -38,39 +41,74 @@ body {
 
 .header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  padding-bottom: 16px;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 14px;
 }
 
 .wordmark {
   font-family: 'Playfair Display', serif;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 400;
   color: var(--cream);
   letter-spacing: -0.02em;
 }
 .wordmark em { font-style: italic; color: var(--amber); }
 
-.app-status {
+.header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  text-transform: uppercase;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.identity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.02);
 }
 
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--green);
+  flex-shrink: 0;
+}
+
+.status-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.status-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.user-email {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
 }
 
 .main-nav {
@@ -258,11 +296,12 @@ body {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 7px 10px;
-  border-radius: 5px;
+  padding: 10px 12px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
+
 .btn-inline:hover { border-color: var(--amber); color: var(--amber); }
 .btn-inline.danger:hover { border-color: var(--red); color: var(--red); }
 
@@ -270,7 +309,7 @@ body {
   width: 100%;
   background: var(--amber);
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   color: #1a1612;
   font-size: 12px;
   font-weight: 500;
@@ -409,6 +448,13 @@ body {
   padding: 18px 2px;
 }
 
+.auth-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
 .toast {
   position: fixed;
   bottom: 24px;
@@ -434,6 +480,7 @@ body {
   .overview {
     grid-template-columns: 1fr;
   }
+
   .overview-stats {
     justify-content: flex-start;
   }
@@ -443,8 +490,26 @@ body {
   .main-nav {
     grid-template-columns: 1fr 1fr;
   }
+
   .form-grid-2 {
     grid-template-columns: 1fr;
+  }
+
+  .header {
+    align-items: flex-start;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .identity-pill {
+    max-width: 100%;
+  }
+
+  .user-email {
+    max-width: 180px;
   }
 }
 </style>
@@ -454,10 +519,14 @@ body {
 <header class="header">
   <div class="wordmark">the <em>keep</em></div>
 
-  <div class="app-status">
-    <div class="status-dot"></div>
-    <span id="statusLabel"> </span>
-    <span id="userEmail" style="margin-left:8px; color:#c8a96e;"></span>
+  <div class="header-right">
+    <div class="identity-pill">
+      <div class="status-dot"></div>
+      <div class="status-copy">
+        <span class="status-label" id="statusLabel">private household</span>
+        <span class="user-email" id="userEmail">signed out</span>
+      </div>
+    </div>
     <button class="btn-inline" id="signOutBtn" onclick="signOut()" style="display:none;">sign out</button>
   </div>
 </header>
@@ -477,11 +546,14 @@ body {
   <div class="overview-stats" id="overviewStats"></div>
 </div>
 
-<div id="authGate" class="section" style="display:none; max-width:520px;">
+<div id="authGate" class="section" style="display:none; max-width:560px;">
   <div class="section-label">sign in</div>
+  <div class="auth-copy">
+    Enter your email and a secure sign-in link will be sent to you. If you have signed in before, your session should persist until you sign out.
+  </div>
   <div class="field">
     <label for="emailInput">email</label>
-    <input class="input" id="emailInput" type="email" placeholder="you@example.com">
+    <input class="input" id="emailInput" type="email" placeholder="you@example.com" autocomplete="email">
   </div>
   <button class="btn-primary" onclick="signInWithMagicLink()">email me a magic link</button>
 </div>
@@ -500,7 +572,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = "https://xpnznomjwzvrneulfmaa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_BF31unuVo4QhL6yYwBLYGA_W-bu2yC6";
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
 
 const ROOMS = [
   "Kitchen",
@@ -547,31 +626,11 @@ async function init() {
 }
 
 async function restoreSession() {
-  const { data, error } = await db.auth.getSession();
+  try {
+    const { data, error } = await db.auth.getSession();
+    if (error) throw error;
 
-  if (error) {
-    console.error(error);
-    showToast("failed to restore session", "error");
-    showSignedOut();
-    return;
-  }
-
-  currentUser = data.session?.user ?? null;
-  sessionReady = true;
-
-  if (currentUser) {
-    showSignedIn();
-    await loadAllFromSupabase();
-  } else {
-    showSignedOut();
-  }
-
-  renderAll();
-}
-
-function bindAuthListener() {
-  db.auth.onAuthStateChange(async (_event, session) => {
-    currentUser = session?.user ?? null;
+    currentUser = data.session?.user ?? null;
     sessionReady = true;
 
     if (currentUser) {
@@ -580,9 +639,40 @@ function bindAuthListener() {
     } else {
       appData = { routines: [], stock: [], shopping: [] };
       showSignedOut();
+      renderAll();
     }
-
+  } catch (err) {
+    console.error("restoreSession error:", err);
+    currentUser = null;
+    sessionReady = true;
+    appData = { routines: [], stock: [], shopping: [] };
+    showSignedOut();
     renderAll();
+  }
+}
+
+function bindAuthListener() {
+  db.auth.onAuthStateChange(async (_event, session) => {
+    try {
+      currentUser = session?.user ?? null;
+      sessionReady = true;
+
+      if (currentUser) {
+        showSignedIn();
+        await loadAllFromSupabase();
+      } else {
+        appData = { routines: [], stock: [], shopping: [] };
+        isLoading = false;
+        showSignedOut();
+        renderAll();
+      }
+    } catch (err) {
+      console.error("auth state change error:", err);
+      appData = { routines: [], stock: [], shopping: [] };
+      isLoading = false;
+      showSignedOut();
+      renderAll();
+    }
   });
 }
 
@@ -590,18 +680,16 @@ function showSignedIn() {
   document.getElementById("authGate").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("signOutBtn").style.display = "inline-flex";
-
-  const email = currentUser?.email || "";
-  document.getElementById("userEmail").textContent = email;
+  document.getElementById("statusLabel").textContent = "private household";
+  document.getElementById("userEmail").textContent = currentUser?.email || "signed in";
 }
 
 function showSignedOut() {
   document.getElementById("authGate").style.display = "block";
   document.getElementById("appShell").style.display = "none";
   document.getElementById("signOutBtn").style.display = "none";
-
-  document.getElementById("userEmail").textContent = "";
-
+  document.getElementById("statusLabel").textContent = "private household";
+  document.getElementById("userEmail").textContent = "signed out";
   isLoading = false;
 }
 
@@ -613,32 +701,39 @@ async function signInWithMagicLink() {
     return;
   }
 
-  const { error } = await db.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: window.location.origin + window.location.pathname
-    }
-  });
+  try {
+    const { error } = await db.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin + window.location.pathname,
+        shouldCreateUser: true
+      }
+    });
 
-  if (error) {
-    console.error(error);
+    if (error) throw error;
+    showToast("check your email for the magic link", "success");
+  } catch (err) {
+    console.error("signInWithMagicLink error:", err);
     showToast("failed to send magic link", "error");
-    return;
   }
-
-  showToast("check your email for the magic link", "success");
 }
 
 async function signOut() {
-  const { error } = await db.auth.signOut();
+  try {
+    const { error } = await db.auth.signOut();
+    if (error) throw error;
 
-  if (error) {
-    console.error(error);
+    currentUser = null;
+    appData = { routines: [], stock: [], shopping: [] };
+    isLoading = false;
+
+    showSignedOut();
+    renderAll();
+    showToast("signed out", "success");
+  } catch (err) {
+    console.error("signOut error:", err);
     showToast("failed to sign out", "error");
-    return;
   }
-
-  showToast("signed out", "success");
 }
 
 async function loadAllFromSupabase() {
@@ -652,25 +747,41 @@ async function loadAllFromSupabase() {
   isLoading = true;
   renderAll();
 
-  const [routinesRes, stockRes, shoppingRes] = await Promise.all([
-    db.from("routines").select("*").order("room").order("title"),
-    db.from("stock_items").select("*").order("room").order("name"),
-    db.from("shopping_items").select("*").order("checked").order("room").order("name")
-  ]);
+  try {
+    const timeout = (ms) =>
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("request timeout")), ms)
+      );
 
-  if (routinesRes.error || stockRes.error || shoppingRes.error) {
-    console.error("routines error:", routinesRes.error);
-    console.error("stock error:", stockRes.error);
-    console.error("shopping error:", shoppingRes.error);
-    showToast("failed to load data", "error");
-  } else {
+    const fetchAll = Promise.all([
+      db.from("routines").select("*").order("room").order("title"),
+      db.from("stock_items").select("*").order("room").order("name"),
+      db.from("shopping_items").select("*").order("checked").order("room").order("name")
+    ]);
+
+    const [routinesRes, stockRes, shoppingRes] = await Promise.race([
+      fetchAll,
+      timeout(10000)
+    ]);
+
+    if (routinesRes.error || stockRes.error || shoppingRes.error) {
+      console.error("routines error:", routinesRes.error);
+      console.error("stock error:", stockRes.error);
+      console.error("shopping error:", shoppingRes.error);
+      throw new Error("failed to load data");
+    }
+
     appData.routines = routinesRes.data || [];
     appData.stock = stockRes.data || [];
     appData.shopping = shoppingRes.data || [];
+  } catch (err) {
+    console.error("loadAllFromSupabase error:", err);
+    appData = { routines: [], stock: [], shopping: [] };
+    showToast("failed to load data", "error");
+  } finally {
+    isLoading = false;
+    renderAll();
   }
-
-  isLoading = false;
-  renderAll();
 }
 
 function switchPanel(name) {
