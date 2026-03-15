@@ -671,12 +671,11 @@ async function restoreSession() {
 function bindAuthListener() {
   db.auth.onAuthStateChange(async (event, session) => {
     try {
+      // Skip INITIAL_SESSION entirely — restoreSession handles it
+      if (event === "INITIAL_SESSION") return;
+
       currentUser = session?.user ?? null;
       sessionReady = true;
-
-      if (!initialAuthResolved && event === "INITIAL_SESSION") {
-        return;
-      }
 
       if (currentUser) {
         showSignedIn();
