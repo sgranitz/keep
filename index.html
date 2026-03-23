@@ -45,8 +45,6 @@ body {
   align-items: center;
   justify-content: space-between;
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 14px;
 }
@@ -585,6 +583,10 @@ body {
   </div>
 </header>
 
+<svg class="seam" viewBox="0 0 900 20" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0 9 Q170 15 400 10 Q630 5 900 13" fill="none" stroke="var(--amber)" stroke-width="1" opacity="0.35"/>
+</svg>
+
 <nav class="main-nav">
   <button class="nav-btn active" data-panel="today">today</button>
   <button class="nav-btn" data-panel="routines">routines</button>
@@ -599,10 +601,6 @@ body {
   </div>
   <div class="overview-stats" id="overviewStats"></div>
 </div>
-
-<svg class="seam" viewBox="0 0 900 20" xmlns="http://www.w3.org/2000/svg">
-  <path d="M0 9 Q170 15 400 10 Q630 5 900 13" fill="none" stroke="var(--amber)" stroke-width="1" opacity="0.35"/>
-</svg>
 
 <div id="authGate" class="section" style="display:none; max-width:560px;">
   <div class="section-label">sign in</div>
