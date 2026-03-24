@@ -642,6 +642,9 @@ body {
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// SUPABASE_KEY is the publishable (anon) key — safe to expose in client-side
+// code ONLY when Row Level Security (RLS) is enabled on all tables.
+// Verify RLS is active: Supabase dashboard → Table Editor → each table → RLS enabled.
 const SUPABASE_URL = "https://xpnznomjwzvrneulfmaa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_BF31unuVo4QhL6yYwBLYGA_W-bu2yC6";
 
@@ -1046,7 +1049,7 @@ function renderRoutineRow(r) {
   const badgeText =
     r.status === "overdue" ? `overdue ${Math.abs(r.daysUntilDue)}d` :
     r.status === "due" ? "due today" :
-    r.status === "soon" ? `${r.daysUntilDue}d` : r.dueDate;
+    `in ${r.daysUntilDue}d`;
 
   return `
     <div class="task-row">
@@ -1180,7 +1183,7 @@ function renderRoutineManageRow(r) {
   const badgeText =
     r.status === "overdue" ? `overdue ${Math.abs(r.daysUntilDue)}d` :
     r.status === "due" ? "due today" :
-    r.status === "soon" ? `${r.daysUntilDue}d` : r.dueDate;
+    `in ${r.daysUntilDue}d`;
 
   return `
     <div class="task-row">
