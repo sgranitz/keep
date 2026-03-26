@@ -1374,15 +1374,7 @@ function renderRoutines() {
     ${roomFilterRow('routines', appData.routines)}
     <div class="section" style="margin-bottom:16px;">
       <div class="section-label">routines</div>
-      ${filtered.length ? filtered.map(r => `<div class="list-row">
-        <div style="flex:1;">
-          <div style="font-size:13px;color:var(--cream)">${esc(r.title)}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(r.room)} · ${frequencyLabel(r.frequency, r.interval)}</div>
-          ${r.notes ? `<div style="font-size:10px;color:var(--faint);margin-top:2px;">${esc(r.notes)}</div>` : ''}
-        </div>
-        <button class="btn-inline" onclick="completeRoutine('${esc(r._file)}')">done</button>
-        <button class="btn-inline" style="color:var(--red)" onclick="deleteRoutine('${esc(r._file)}')">×</button>
-      </div>`).join('') : '<div class="empty">no routines</div>'}
+      <div class="stack">${filtered.length ? filtered.map(renderRoutineManageRow).join('') : '<div class="empty">no routines</div>'}</div>
     </div>
     <div class="section" style="margin-bottom:16px;">
       <div class="section-label">add routine</div>
@@ -1415,6 +1407,56 @@ function renderRoutines() {
     </div>`;
 }
 
+function renderRoutineManageRow(r) {
+  const { status, daysUntilDue } = computeRoutineStatus(r);
+  const badgeClass =
+    status === 'overdue' ? 'low' :
+    status === 'due'     ? 'due' :
+    status === 'soon'    ? 'soon' : 'ok';
+  const badgeText =
+    status === 'overdue' ? `overdue ${Math.abs(daysUntilDue)}d` :
+    status === 'due'     ? 'due today' : `in ${daysUntilDue}d`;
+  return `
+    <div class="task-row">
+      <div class="task-head">
+        <div>
+          <div class="task-title">${esc(r.title)}</div>
+          <div class="task-sub">${esc(r.room)} · ${frequencyLabel(r.frequency, r.interval)}${r.notes ? ` · ${esc(r.notes)}` : ''}</div>
+        </div>
+        <div class="badge ${badgeClass}">${badgeText}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline" onclick="completeRoutine('${esc(r._file)}')">complete</button>
+        <button class="btn-inline danger" onclick="deleteRoutine('${esc(r._file)}')">delete</button>
+      </div>
+    </div>`;
+}
+
+function renderStockManageRow(s) {
+  const empty = s.quantity === 0;
+  return `
+    <div class="stock-row">
+      <div class="stock-head">
+        <div>
+          <div class="stock-title">${esc(s.title)}</div>
+          <div class="stock-sub">${esc(s.room)} · in stock ${s.quantity}</div>
+        </div>
+        <div class="badge ${empty ? 'low' : 'ok'}">${empty ? 'out of stock' : 'stocked'}</div>
+      </div>
+      <div class="stock-controls">
+        <div class="stock-qty">
+          <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',-1)">−</button>
+          <div class="qty-value">${s.quantity}</div>
+          <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',1)">+</button>
+        </div>
+        <div class="stock-actions">
+          ${empty ? `<button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>` : ''}
+          <button class="btn-inline danger" onclick="deleteStockItem('${esc(s._file)}')">delete</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderStock() {
   const panel    = document.getElementById('panel-stock');
   const filtered = filterByRoom(appData.stock, 'stock');
@@ -1424,19 +1466,7 @@ function renderStock() {
     ${roomFilterRow('stock', appData.stock)}
     <div class="section" style="margin-bottom:16px;">
       <div class="section-label">inventory</div>
-      ${filtered.length ? filtered.map(s => `<div class="list-row">
-        <div style="flex:1;">
-          <div style="font-size:13px;color:${s.quantity === 0 ? 'var(--red)' : 'var(--cream)'}">${esc(s.title)}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(s.room)}</div>
-        </div>
-        <div class="stock-qty">
-          <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',-1)">−</button>
-          <span class="qty-value">${s.quantity}</span>
-          <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',1)">+</button>
-        </div>
-        ${s.quantity === 0 ? `<button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>` : ''}
-        <button class="btn-inline" style="color:var(--red)" onclick="deleteStockItem('${esc(s._file)}')">×</button>
-      </div>`).join('') : '<div class="empty">no items</div>'}
+      <div class="stack">${filtered.length ? filtered.map(renderStockManageRow).join('') : '<div class="empty">no items</div>'}</div>
     </div>
     <div class="section">
       <div class="section-label">add item</div>
