@@ -566,6 +566,8 @@ body {
   display: block;
 }
 </style>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="../core/stoult-core.js"></script>
 </head>
 <body>
 
@@ -607,15 +609,25 @@ body {
 </div>
 
 <div id="authGate" class="section" style="display:none; max-width:560px;">
-  <div class="section-label">sign in</div>
+  <div class="section-label">connect vault</div>
   <div class="auth-copy">
-    Enter your email and a secure sign-in link will be sent to you. If you have signed in before, your session should persist until you sign out.
+    Pick your vault folder on this device, or sign in with Microsoft to access your OneDrive vault from any device including mobile.
   </div>
-  <div class="field">
-    <label for="emailInput">email</label>
-    <input class="input" id="emailInput" type="email" placeholder="you@example.com" autocomplete="email">
+  <div id="setupOptions" style="display:flex; flex-direction:column; gap:10px;">
+    <button class="btn-primary" onclick="pickLocalVault()">pick local folder</button>
+    <button class="btn-inline" onclick="signInMicrosoft()">sign in with microsoft</button>
   </div>
-  <button class="btn-primary" onclick="signInWithMagicLink()">email me a magic link</button>
+  <div id="reconnectRow" style="display:none; margin-top:14px;">
+    <div class="auth-copy">Your vault was previously connected. Tap to reconnect.</div>
+    <button class="btn-primary" onclick="reconnectVault()">reconnect vault</button>
+  </div>
+  <div id="vaultPathRow" style="display:none; margin-top:14px;">
+    <div class="field">
+      <label for="vaultPathInput">vault folder name in OneDrive</label>
+      <input class="input" id="vaultPathInput" placeholder="e.g. seg">
+    </div>
+    <button class="btn-primary" onclick="confirmVaultPath()" style="margin-top:8px;">connect</button>
+  </div>
 </div>
 
 <div id="appShell" style="display:none;">
@@ -639,296 +651,483 @@ body {
   <span>stoult.com</span>
 </footer>
 
-<script type="module">
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+<script>
+// ── To enable Microsoft sign-in (mobile + any device): ────────────────────
+// 1. Go to portal.azure.com → Azure Active Directory → App registrations
+// 2. New registration → name "Stoult Tools" → Accounts in any org + personal
+// 3. Add redirect URI: Web → https://stoult.com/keep/ (and other tool URLs)
+// 4. Under API permissions → Add → Microsoft Graph → Files.ReadWrite + User.Read
+// 5. Paste your Application (client) ID below:
+const CLIENT_ID = 'YOUR_AZURE_CLIENT_ID';
 
-// SUPABASE_KEY is the publishable (anon) key — safe to expose in client-side
-// code ONLY when Row Level Security (RLS) is enabled on all tables.
-// Verify RLS is active: Supabase dashboard → Table Editor → each table → RLS enabled.
-const SUPABASE_URL = "https://xpnznomjwzvrneulfmaa.supabase.co";
-const SUPABASE_KEY = "sb_publishable_BF31unuVo4QhL6yYwBLYGA_W-bu2yC6";
+const KEEP_BASE      = 'References/Keep';
+const VAULT_PATH_KEY = 'stoult_vault_path';
 
-const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-});
-
-let rooms = [];
-let appData = { routines: [], stock: [], shopping: [] };
-let filters = { today: "All", routines: "All", stock: "All", shopping: "All" };
+let storage    = null;
+let rooms      = [];
+let appData    = { routines: [], stock: [], shopping: [] };
+let filters    = { routines: 'All', stock: 'All', shopping: 'All' };
 let toastTimer = null;
-let isLoading = true;
-let currentUser = null;
-let sessionReady = false;
-let initialAuthResolved = false;
-let activeLoadPromise = null;
 
-document.querySelectorAll(".nav-btn").forEach(btn => {
-  btn.addEventListener("click", () => switchPanel(btn.dataset.panel));
-});
-
-window.setRoomFilter = setRoomFilter;
-window.addRoutine = addRoutine;
-window.completeRoutine = completeRoutine;
-window.deleteRoutine = deleteRoutine;
-window.addStockItem = addStockItem;
-window.adjustStock = adjustStock;
-window.deleteStockItem = deleteStockItem;
-window.addStockToShopping = addStockToShopping;
-window.addShoppingItem = addShoppingItem;
-window.toggleShopping = toggleShopping;
-window.deleteShoppingItem = deleteShoppingItem;
-window.addRoom = addRoom;
-window.deleteRoom = deleteRoom;
-window.signInWithMagicLink = signInWithMagicLink;
-window.signOut = signOut;
-
-init();
-
+// ── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
-  bindAuthListener();
-  await restoreSession();
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.addEventListener('click', () => switchPanel(b.dataset.panel));
+  });
+
+  // 1. Try restoring FSAL handle (desktop)
+  const handle = await STOULT.loadHandle();
+  if (handle) {
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') { return initWithFSAL(handle); }
+    if (perm === 'prompt')  { return showReconnectGate(handle); }
+  }
+
+  // 2. Try MSAL (any device, requires CLIENT_ID)
+  if (CLIENT_ID !== 'YOUR_AZURE_CLIENT_ID') {
+    const hasSession = await STOULT.initMsal(CLIENT_ID);
+    if (hasSession) { return initWithGraph(); }
+  }
+
+  showSetupGate();
 }
 
-async function restoreSession() {
-  try {
-    const { data, error } = await db.auth.getSession();
-    if (error) throw error;
-
-    currentUser = data.session?.user ?? null;
-    sessionReady = true;
-
-    if (currentUser) {
-      showSignedIn();
-      await loadAllFromSupabase({ silent: true });
-    } else {
-      appData = { routines: [], stock: [], shopping: [] };
-      rooms = [];
-      showSignedOut();
-      renderAll();
-    }
-
-    initialAuthResolved = true;
-  } catch (err) {
-    console.error("restoreSession error:", err);
-    currentUser = null;
-    sessionReady = true;
-    appData = { routines: [], stock: [], shopping: [] };
-    rooms = [];
-    showSignedOut();
-    renderAll();
-    initialAuthResolved = true;
+function showSetupGate() {
+  document.getElementById('authGate').style.display      = '';
+  document.getElementById('setupOptions').style.display  = '';
+  document.getElementById('reconnectRow').style.display  = 'none';
+  document.getElementById('vaultPathRow').style.display  = 'none';
+  // Hide MS sign-in button if no CLIENT_ID configured
+  if (CLIENT_ID === 'YOUR_AZURE_CLIENT_ID') {
+    document.querySelector('[onclick="signInMicrosoft()"]').style.display = 'none';
   }
 }
 
-function bindAuthListener() {
-  db.auth.onAuthStateChange(async (event, session) => {
-    try {
-      // Skip INITIAL_SESSION entirely — restoreSession handles it
-      if (event === "INITIAL_SESSION") return;
+function showReconnectGate(handle) {
+  window._pendingHandle = handle;
+  document.getElementById('authGate').style.display      = '';
+  document.getElementById('setupOptions').style.display  = 'none';
+  document.getElementById('reconnectRow').style.display  = '';
+  document.getElementById('vaultPathRow').style.display  = 'none';
+}
 
-      currentUser = session?.user ?? null;
-      sessionReady = true;
+async function pickLocalVault() {
+  if (!window.showDirectoryPicker) {
+    showToast('Folder picker not supported on this browser', 'error');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    await initWithFSAL(handle);
+  } catch (e) {
+    if (e.name !== 'AbortError') showToast('Could not open folder', 'error');
+  }
+}
 
-      if (currentUser) {
-        showSignedIn();
-        await loadAllFromSupabase({ silent: true });
-      } else {
-        appData = { routines: [], stock: [], shopping: [] };
-        rooms = [];
-        isLoading = false;
-        showSignedOut();
-        renderAll();
-      }
-    } catch (err) {
-      console.error("auth state change error:", err);
-      appData = { routines: [], stock: [], shopping: [] };
-      rooms = [];
-      isLoading = false;
-      showSignedOut();
-      renderAll();
+async function reconnectVault() {
+  const handle = window._pendingHandle;
+  await handle.requestPermission({ mode: 'readwrite' });
+  await initWithFSAL(handle);
+}
+
+async function initWithFSAL(handle) {
+  await STOULT.FSALStorage.init(handle);
+  storage = STOULT.FSALStorage;
+  STOULT.setStorage(storage);
+  showApp({ displayName: handle.name });
+  await loadAll();
+}
+
+async function signInMicrosoft() {
+  try {
+    if (CLIENT_ID === 'YOUR_AZURE_CLIENT_ID') {
+      showToast('Microsoft CLIENT_ID not configured', 'error');
+      return;
     }
-  });
+    await STOULT.initMsal(CLIENT_ID);
+    await STOULT.signIn();
+    await initWithGraph();
+  } catch (e) {
+    showToast('Sign-in failed', 'error');
+    console.error(e);
+  }
 }
 
-function showSignedIn() {
-  document.getElementById("authGate").style.display = "none";
-  document.getElementById("appShell").style.display = "block";
-  document.getElementById("signOutBtn").style.display = "inline-flex";
-  document.getElementById("statusLabel").textContent = "private household";
-  document.getElementById("userEmail").textContent = currentUser?.email || "signed in";
-}
+async function initWithGraph() {
+  const user = STOULT.getUser();
+  if (!user) { showSetupGate(); return; }
 
-function showSignedOut() {
-  document.getElementById("authGate").style.display = "block";
-  document.getElementById("appShell").style.display = "none";
-  document.getElementById("signOutBtn").style.display = "none";
-  document.getElementById("statusLabel").textContent = "private household";
-  document.getElementById("userEmail").textContent = "signed out";
-  isLoading = false;
-}
-
-async function signInWithMagicLink() {
-  const email = document.getElementById("emailInput").value.trim();
-
-  if (!email) {
-    showToast("enter your email", "error");
+  const vaultPath = localStorage.getItem(VAULT_PATH_KEY);
+  if (!vaultPath) {
+    document.getElementById('authGate').style.display     = '';
+    document.getElementById('setupOptions').style.display = 'none';
+    document.getElementById('reconnectRow').style.display = 'none';
+    document.getElementById('vaultPathRow').style.display = '';
     return;
   }
 
-  try {
-    const { error } = await db.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin + window.location.pathname,
-        shouldCreateUser: true
-      }
-    });
+  STOULT.GraphStorage.init(vaultPath);
+  storage = STOULT.GraphStorage;
+  STOULT.setStorage(storage);
+  showApp(user);
+  await loadAll();
+}
 
-    if (error) throw error;
-    showToast("check your email for the magic link", "success");
-  } catch (err) {
-    console.error("signInWithMagicLink error:", err);
-    showToast("failed to send magic link", "error");
-  }
+async function confirmVaultPath() {
+  const path = document.getElementById('vaultPathInput').value.trim();
+  if (!path) return;
+  localStorage.setItem(VAULT_PATH_KEY, path);
+  await initWithGraph();
+}
+
+function showApp(user) {
+  document.getElementById('authGate').style.display  = 'none';
+  document.getElementById('appShell').style.display  = '';
+  document.getElementById('signOutBtn').style.display = '';
+  document.getElementById('statusLabel').textContent = 'connected';
+  document.getElementById('userEmail').textContent   =
+    user.username || user.displayName || user.name || 'vault';
 }
 
 async function signOut() {
+  await STOULT.signOut();
+  storage = null;
+  rooms   = [];
+  appData = { routines: [], stock: [], shopping: [] };
+  document.getElementById('authGate').style.display   = 'none';
+  document.getElementById('appShell').style.display   = 'none';
+  document.getElementById('signOutBtn').style.display = 'none';
+  document.getElementById('statusLabel').textContent  = 'private household';
+  document.getElementById('userEmail').textContent    = 'signed out';
+  showSetupGate();
+}
+
+// ── DATA LOADING ────────────────────────────────────────────────────────────
+async function loadAll() {
   try {
-    const { error } = await db.auth.signOut();
-    if (error) throw error;
-
-    currentUser = null;
-    appData = { routines: [], stock: [], shopping: [] };
-    rooms = [];
-    isLoading = false;
-
-    showSignedOut();
+    await ensureKeepFolders();
+    const [r, routines, stock, shopping] = await Promise.all([
+      loadRooms(), loadRoutines(), loadStock(), loadShopping(),
+    ]);
+    rooms             = r;
+    appData.routines  = routines;
+    appData.stock     = stock;
+    appData.shopping  = shopping;
     renderAll();
-    showToast("signed out", "success");
-  } catch (err) {
-    console.error("signOut error:", err);
-    showToast("failed to sign out", "error");
+  } catch (e) {
+    showToast('Failed to load vault', 'error');
+    console.error(e);
   }
 }
 
-async function loadAllFromSupabase({ silent = false } = {}) {
-  if (activeLoadPromise) return activeLoadPromise;
-
-  activeLoadPromise = (async () => {
-    if (!currentUser) {
-      appData = { routines: [], stock: [], shopping: [] };
-      rooms = [];
-      isLoading = false;
-      renderAll();
-      return;
-    }
-
-    isLoading = true;
-    renderAll();
-
-    try {
-      const timeout = (ms) =>
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("request timeout")), ms)
-        );
-
-      const fetchAll = Promise.all([
-        db.from("rooms").select("*").order("sort_order").order("name"),
-        db.from("routines").select("*").order("title"),
-        db.from("stock_items").select("*").order("name"),
-        db.from("shopping_items").select("*").order("checked").order("name")
-      ]);
-
-      const [roomsRes, routinesRes, stockRes, shoppingRes] = await Promise.race([
-        fetchAll,
-        timeout(10000)
-      ]);
-
-      if (roomsRes.error || routinesRes.error || stockRes.error || shoppingRes.error) {
-        console.error("rooms error:", roomsRes.error);
-        console.error("routines error:", routinesRes.error);
-        console.error("stock error:", stockRes.error);
-        console.error("shopping error:", shoppingRes.error);
-        throw new Error("failed to load data");
-      }
-
-      rooms = roomsRes.data || [];
-      appData.routines = routinesRes.data || [];
-      appData.stock = stockRes.data || [];
-      appData.shopping = shoppingRes.data || [];
-    } catch (err) {
-      console.error("loadAllFromSupabase error:", err);
-      rooms = [];
-      appData = { routines: [], stock: [], shopping: [] };
-
-      if (!silent) {
-        showToast("failed to load data", "error");
-      }
-    } finally {
-      isLoading = false;
-      renderAll();
-      activeLoadPromise = null;
-    }
-  })();
-
-  return activeLoadPromise;
+async function ensureKeepFolders() {
+  await storage.ensureFolder(KEEP_BASE);
+  await storage.ensureFolder(`${KEEP_BASE}/Routines`);
+  await storage.ensureFolder(`${KEEP_BASE}/Stock`);
 }
 
-function switchPanel(name) {
-  document.querySelectorAll(".nav-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.panel === name);
-  });
-  document.querySelectorAll(".panel").forEach(panel => {
-    panel.classList.toggle("active", panel.id === `panel-${name}`);
-  });
+// ── FILE FORMATS ────────────────────────────────────────────────────────────
+async function loadRooms() {
+  const raw = await storage.readFile(`${KEEP_BASE}/Rooms.md`);
+  if (!raw) return ['Kitchen', 'Bathroom', 'Living Room', 'Bedroom'];
+  const { body } = STOULT.parseFrontmatter(raw);
+  return body.split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim()).filter(Boolean);
 }
 
-function roomName(roomId) {
-  return rooms.find(r => r.id === roomId)?.name || "Unknown room";
+async function writeRooms(r) {
+  await storage.writeFile(`${KEEP_BASE}/Rooms.md`,
+    STOULT.buildMarkdown({ title: 'Rooms', tags: ['keep'] }, r.map(x => `- ${x}`).join('\n'))
+  );
 }
 
-function roomUsageCounts(roomId) {
-  return {
-    routines: appData.routines.filter(r => r.room_id === roomId).length,
-    stock: appData.stock.filter(s => s.room_id === roomId).length,
-    shopping: appData.shopping.filter(s => s.room_id === roomId).length
-  };
+async function loadRoutines() {
+  const files = await storage.listFiles(`${KEEP_BASE}/Routines`);
+  const out   = [];
+  for (const f of files) {
+    if (!f.name?.endsWith('.md')) continue;
+    const raw = await storage.readFile(`${KEEP_BASE}/Routines/${f.name}`);
+    if (!raw) continue;
+    const { meta } = STOULT.parseFrontmatter(raw);
+    out.push({
+      _file:          f.name,
+      title:          meta.title        || f.name.replace('.md', ''),
+      room:           meta.room         || '',
+      frequency:      meta.frequency    || 'weekly',
+      interval:       parseInt(meta.interval) || 1,
+      last_completed: meta.last_completed || '',
+      notes:          meta.notes        || '',
+      created:        meta.created      || todayISO(),
+    });
+  }
+  return out;
 }
 
-function nextRoomSortOrder() {
-  return (rooms.length ? Math.max(...rooms.map(r => Number(r.sort_order) || 0)) : 0) + 1;
+async function writeRoutine(r) {
+  await storage.writeFile(`${KEEP_BASE}/Routines/${r._file}`,
+    STOULT.buildMarkdown({
+      title: r.title, room: r.room, frequency: r.frequency,
+      interval: r.interval, last_completed: r.last_completed || '',
+      notes: r.notes || '', tags: ['keep', 'routine'], created: r.created || todayISO(),
+    })
+  );
 }
 
-function filterByRoom(items, panelName) {
-  const roomId = filters[panelName];
-  if (!roomId || roomId === "All") return items;
-  return items.filter(x => x.room_id === roomId);
+async function loadStock() {
+  const files = await storage.listFiles(`${KEEP_BASE}/Stock`);
+  const out   = [];
+  for (const f of files) {
+    if (!f.name?.endsWith('.md')) continue;
+    const raw = await storage.readFile(`${KEEP_BASE}/Stock/${f.name}`);
+    if (!raw) continue;
+    const { meta } = STOULT.parseFrontmatter(raw);
+    out.push({
+      _file:    f.name,
+      title:    meta.title || f.name.replace('.md', ''),
+      room:     meta.room  || '',
+      quantity: parseInt(meta.quantity) || 0,
+      created:  meta.created || todayISO(),
+    });
+  }
+  return out;
 }
 
-function renderRoomFilters(panelName) {
-  const values = [{ id: "All", name: "All" }, ...rooms];
-
-  return `
-    <div class="filter-row">
-      ${values.map(room => `
-        <button class="filter-btn ${filters[panelName] === room.id ? "active" : ""}"
-          onclick="setRoomFilter('${panelName}', '${escapeJs(room.id)}')">
-          ${escapeHtml(room.name)}
-        </button>
-      `).join("")}
-    </div>
-  `;
+async function writeStockItem(item) {
+  await storage.writeFile(`${KEEP_BASE}/Stock/${item._file}`,
+    STOULT.buildMarkdown({
+      title: item.title, room: item.room, quantity: item.quantity,
+      tags: ['keep', 'stock'], created: item.created || todayISO(),
+    })
+  );
 }
 
-function setRoomFilter(panelName, room) {
-  filters[panelName] = room;
+async function loadShopping() {
+  const raw = await storage.readFile(`${KEEP_BASE}/Shopping.md`);
+  if (!raw) return [];
+  const { body } = STOULT.parseFrontmatter(raw);
+  return body.split('\n').map(line => {
+    const m = line.match(/^- \[([ x])\] (.+?)(?:\s*<!--\s*(\w+)\s*-->)?$/);
+    if (!m) return null;
+    return { name: m[2].trim(), checked: m[1] === 'x', source: m[3] || 'manual' };
+  }).filter(Boolean);
+}
+
+async function writeShopping(items) {
+  const body = items.map(i =>
+    `- [${i.checked ? 'x' : ' '}] ${i.name}${i.source !== 'manual' ? ` <!-- ${i.source} -->` : ''}`
+  ).join('\n');
+  await storage.writeFile(`${KEEP_BASE}/Shopping.md`,
+    STOULT.buildMarkdown({ title: 'Shopping List', updated: todayISO(), tags: ['keep', 'shopping'] }, body)
+  );
+}
+
+// ── UNIQUE FILENAME ─────────────────────────────────────────────────────────
+async function uniqueFileName(folder, title) {
+  const base     = STOULT.slug(title);
+  const existing = (await storage.listFiles(`${KEEP_BASE}/${folder}`)).map(f => f.name);
+  let name = `${base}.md`;
+  let n    = 1;
+  while (existing.includes(name)) { name = `${base}-${n++}.md`; }
+  return name;
+}
+
+// ── CRUD: ROUTINES ──────────────────────────────────────────────────────────
+async function addRoutine() {
+  const title    = document.getElementById('newRoutineTitle').value.trim();
+  const room     = document.getElementById('newRoutineRoom').value;
+  const frequency = document.getElementById('newRoutineFreq').value;
+  const interval = parseInt(document.getElementById('newRoutineInterval').value) || 1;
+  const notes    = document.getElementById('newRoutineNotes').value.trim();
+  if (!title) return;
+
+  const fileName = await uniqueFileName('Routines', title);
+  const routine  = { _file: fileName, title, room, frequency, interval, notes, last_completed: '', created: todayISO() };
+  await writeRoutine(routine);
+  appData.routines.push(routine);
+  document.getElementById('newRoutineTitle').value = '';
+  renderAll();
+  showToast('routine added');
+}
+
+async function completeRoutine(fileName) {
+  const r = appData.routines.find(x => x._file === fileName);
+  if (!r) return;
+  r.last_completed = todayISO();
+  await writeRoutine(r);
+  renderAll();
+  showToast('marked complete');
+}
+
+async function deleteRoutine(fileName) {
+  if (!confirm('Delete this routine?')) return;
+  await storage.deleteFile(`${KEEP_BASE}/Routines/${fileName}`);
+  appData.routines = appData.routines.filter(r => r._file !== fileName);
+  renderAll();
+  showToast('routine removed');
+}
+
+// ── CRUD: STOCK ─────────────────────────────────────────────────────────────
+async function addStockItem() {
+  const title = document.getElementById('newStockName').value.trim();
+  const room  = document.getElementById('newStockRoom').value;
+  const qty   = parseInt(document.getElementById('newStockQty').value) || 0;
+  if (!title) return;
+
+  const fileName = await uniqueFileName('Stock', title);
+  const item     = { _file: fileName, title, room, quantity: qty, created: todayISO() };
+  await writeStockItem(item);
+  appData.stock.push(item);
+  document.getElementById('newStockName').value = '';
+  renderAll();
+  showToast('item added');
+}
+
+async function adjustStock(fileName, delta) {
+  const item = appData.stock.find(x => x._file === fileName);
+  if (!item) return;
+  item.quantity = Math.max(0, item.quantity + delta);
+  await writeStockItem(item);
   renderAll();
 }
 
+async function deleteStockItem(fileName) {
+  if (!confirm('Remove from stock?')) return;
+  await storage.deleteFile(`${KEEP_BASE}/Stock/${fileName}`);
+  appData.stock = appData.stock.filter(x => x._file !== fileName);
+  renderAll();
+  showToast('item removed');
+}
+
+async function addStockToShopping(fileName) {
+  const item = appData.stock.find(x => x._file === fileName);
+  if (!item) return;
+  const alreadyActive = appData.shopping.some(s => !s.checked && s.name.toLowerCase() === item.title.toLowerCase());
+  if (alreadyActive) { showToast('already on list'); return; }
+  appData.shopping.push({ name: item.title, checked: false, source: 'stock' });
+  await writeShopping(appData.shopping);
+  renderAll();
+  showToast('added to shopping');
+}
+
+// ── CRUD: SHOPPING ───────────────────────────────────────────────────────────
+async function addShoppingItem() {
+  const name = document.getElementById('newShoppingItem').value.trim();
+  if (!name) return;
+  appData.shopping.push({ name, checked: false, source: 'manual' });
+  await writeShopping(appData.shopping);
+  document.getElementById('newShoppingItem').value = '';
+  renderAll();
+  showToast('added to list');
+}
+
+async function toggleShopping(idx) {
+  appData.shopping[idx].checked = !appData.shopping[idx].checked;
+  await writeShopping(appData.shopping);
+  renderAll();
+}
+
+async function deleteShoppingItem(idx) {
+  appData.shopping.splice(idx, 1);
+  await writeShopping(appData.shopping);
+  renderAll();
+  showToast('removed');
+}
+
+async function clearDoneShopping() {
+  appData.shopping = appData.shopping.filter(s => !s.checked);
+  await writeShopping(appData.shopping);
+  renderAll();
+  showToast('cleared');
+}
+
+// ── CRUD: ROOMS ─────────────────────────────────────────────────────────────
+async function addRoom() {
+  const name = document.getElementById('newRoomName').value.trim();
+  if (!name || rooms.includes(name)) return;
+  rooms.push(name);
+  await writeRooms(rooms);
+  document.getElementById('newRoomName').value = '';
+  renderAll();
+  showToast('room added');
+}
+
+async function deleteRoom(name) {
+  const inUse = appData.routines.some(r => r.room === name) || appData.stock.some(s => s.room === name);
+  if (inUse) { showToast('room has items — move them first', 'error'); return; }
+  rooms = rooms.filter(r => r !== name);
+  if (filters.routines === name) filters.routines = 'All';
+  if (filters.stock === name)    filters.stock    = 'All';
+  await writeRooms(rooms);
+  renderAll();
+  showToast('room removed');
+}
+
+// ── UTILITIES ────────────────────────────────────────────────────────────────
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function diffDays(from, to) {
+  if (!from) return null;
+  const a = new Date(from + 'T00:00:00');
+  const b = new Date((to || todayISO()) + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+function frequencyDays(freq, interval) {
+  const base = { daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 90, yearly: 365 }[freq] || 7;
+  return base * (parseInt(interval) || 1);
+}
+
+function frequencyLabel(freq, interval) {
+  const n = parseInt(interval) || 1;
+  if (freq === 'daily')     return n > 1 ? `every ${n} days`   : 'daily';
+  if (freq === 'weekly')    return n > 1 ? `every ${n} weeks`  : 'weekly';
+  if (freq === 'biweekly')  return 'every 2 weeks';
+  if (freq === 'monthly')   return n > 1 ? `every ${n} months` : 'monthly';
+  if (freq === 'quarterly') return 'quarterly';
+  if (freq === 'yearly')    return 'yearly';
+  return freq;
+}
+
+function computeRoutineStatus(r) {
+  const period    = frequencyDays(r.frequency, r.interval);
+  const daysSince = r.last_completed ? diffDays(r.last_completed, todayISO()) : period + 1;
+  const daysUntilDue = period - daysSince;
+  const status =
+    daysSince > period  ? 'overdue' :
+    daysUntilDue <= 0   ? 'due'     :
+    daysUntilDue <= 2   ? 'soon'    : 'upcoming';
+  return { status, daysUntilDue };
+}
+
+function setRoomFilter(panel, room) {
+  filters[panel] = room;
+  renderAll();
+}
+
+function filterByRoom(items, panel) {
+  const f = filters[panel];
+  return (!f || f === 'All') ? items : items.filter(x => x.room === f);
+}
+
+function switchPanel(name) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast show${type !== 'success' ? ' ' + type : ''}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
 function renderAll() {
   renderOverview();
   renderToday();
@@ -937,884 +1136,217 @@ function renderAll() {
   renderShopping();
 }
 
+function roomFilterRow(panel, items) {
+  const used = new Set(items.map(x => x.room).filter(Boolean));
+  const opts = ['All', ...rooms.filter(r => used.has(r))];
+  return `<div class="filter-row">${opts.map(r =>
+    `<button class="filter-btn${filters[panel] === r ? ' active' : ''}" onclick="setRoomFilter('${esc(panel)}','${esc(r)}')">${esc(r)}</button>`
+  ).join('')}</div>`;
+}
+
 function renderOverview() {
-  if (!sessionReady || !currentUser) {
-    document.getElementById("overviewStats").innerHTML = "";
-    return;
-  }
+  const due      = appData.routines.filter(r => ['due','overdue'].includes(computeRoutineStatus(r).status)).length;
+  const overdue  = appData.routines.filter(r => computeRoutineStatus(r).status === 'overdue').length;
+  const outStock = appData.stock.filter(s => s.quantity === 0).length;
+  const shopping = appData.shopping.filter(s => !s.checked).length;
+  document.getElementById('overviewStats').innerHTML = [
+    ['due today',    due,      due > 0      ? '--amber' : '--muted'],
+    ['overdue',      overdue,  overdue > 0  ? '--red'   : '--muted'],
+    ['out of stock', outStock, outStock > 0 ? '--red'   : '--muted'],
+    ['shopping',     shopping, '--muted'],
+  ].map(([label, val, color]) => `
+    <div class="overview-stat">
+      <span class="stat-num" style="color:var(${color})">${val}</span>
+      <span class="stat-label">${label}</span>
+    </div>`).join('');
+}
 
-  const routineStatuses = appData.routines.map(computeRoutineStatus);
-  const dueToday = routineStatuses.filter(r => r.status === "due").length;
-  const overdue = routineStatuses.filter(r => r.status === "overdue").length;
-  const outOfStock = appData.stock.filter(s => Number(s.in_stock) === 0).length;
-  const shopping = appData.shopping.filter(i => !i.checked).length;
-
-  document.getElementById("overviewStats").innerHTML = `
-    <div class="overview-stat"><strong>${dueToday}</strong><span>due today</span></div>
-    <div class="overview-stat"><strong>${overdue}</strong><span>overdue</span></div>
-    <div class="overview-stat"><strong>${outOfStock}</strong><span>out of stock</span></div>
-    <div class="overview-stat"><strong>${shopping}</strong><span>shopping</span></div>
-  `;
+function routineRowHtml(r) {
+  const { status, daysUntilDue } = computeRoutineStatus(r);
+  const badgeClass = { overdue: 'badge-red', due: 'badge-amber', soon: 'badge-muted', upcoming: 'badge-muted' }[status];
+  const badgeText  =
+    status === 'overdue'  ? `${Math.abs(daysUntilDue)}d overdue` :
+    status === 'due'      ? 'due today' :
+    status === 'soon'     ? `in ${daysUntilDue}d` : `in ${daysUntilDue}d`;
+  return `<div class="list-row">
+    <div style="flex:1;">
+      <div style="font-size:13px;color:var(--cream)">${esc(r.title)}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(r.room)} · ${frequencyLabel(r.frequency, r.interval)}</div>
+    </div>
+    <span class="badge ${badgeClass}">${badgeText}</span>
+    <button class="btn-inline" onclick="completeRoutine('${esc(r._file)}')">done</button>
+  </div>`;
 }
 
 function renderToday() {
-  if (!sessionReady || !currentUser) return;
+  const panel = document.getElementById('panel-today');
+  const due   = appData.routines
+    .filter(r => ['overdue','due','soon'].includes(computeRoutineStatus(r).status))
+    .sort((a, b) => {
+      const ord = { overdue: 0, due: 1, soon: 2 };
+      return ord[computeRoutineStatus(a).status] - ord[computeRoutineStatus(b).status];
+    });
+  const outStock      = appData.stock.filter(s => s.quantity === 0);
+  const activeShopping = appData.shopping.filter(s => !s.checked);
 
-  if (isLoading) {
-    document.getElementById("panel-today").innerHTML = `<div class="loading">loading…</div>`;
-    return;
-  }
-
-  let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
-  enriched = filterByRoom(enriched, "today");
-
-  const overdue = enriched
-    .filter(r => r.status === "overdue")
-    .sort((a, b) =>
-      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-      a.title.localeCompare(b.title)
-    );
-
-  const due = enriched
-    .filter(r => r.status === "due")
-    .sort((a, b) =>
-      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-      a.title.localeCompare(b.title)
-    );
-
-  const upcoming = enriched
-    .filter(r => r.status === "soon" || r.status === "upcoming")
-    .sort((a, b) =>
-      a.daysUntilDue - b.daysUntilDue ||
-      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-      a.title.localeCompare(b.title)
-    )
-    .slice(0, 8);
-
-  const outOfStock = filterByRoom(appData.stock, "today")
-    .filter(s => Number(s.in_stock) === 0)
-    .sort((a, b) =>
-      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-      a.name.localeCompare(b.name)
-    );
-
-  const shopping = filterByRoom(appData.shopping, "today")
-    .filter(i => !i.checked)
-    .sort((a, b) =>
-      roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-      a.name.localeCompare(b.name)
-    );
-
-  document.getElementById("panel-today").innerHTML = `
-    ${renderRoomFilters("today")}
-    <div class="two-col">
-      <div>
-        <div class="section">
-          <div class="section-label">overdue</div>
-          <div class="stack">${overdue.length ? overdue.map(renderRoutineRow).join("") : `<div class="empty">nothing overdue</div>`}</div>
-        </div>
-
-        <div class="section">
-          <div class="section-label">due today</div>
-          <div class="stack">${due.length ? due.map(renderRoutineRow).join("") : `<div class="empty">nothing due today</div>`}</div>
-        </div>
-
-        <div class="section">
-          <div class="section-label">upcoming</div>
-          <div class="stack">${upcoming.length ? upcoming.map(renderRoutineRow).join("") : `<div class="empty">nothing upcoming</div>`}</div>
-        </div>
-      </div>
-
-      <div>
-        <div class="section">
-          <div class="section-label">out of stock</div>
-          <div class="stack">${outOfStock.length ? outOfStock.map(renderStockCardCompact).join("") : `<div class="empty">everything stocked</div>`}</div>
-        </div>
-
-        <div class="section">
-          <div class="section-label">shopping list</div>
-          <div class="stack">${shopping.length ? shopping.map(renderShoppingRow).join("") : `<div class="empty">shopping list is clear</div>`}</div>
-        </div>
-      </div>
+  panel.innerHTML = `
+    <div class="section" style="margin-bottom:16px;">
+      <div class="section-label">routines due</div>
+      ${due.length ? due.map(routineRowHtml).join('') : '<div class="empty">all clear</div>'}
     </div>
-  `;
-}
-
-function renderRoutineRow(r) {
-  const badgeClass =
-    r.status === "overdue" ? "low" :
-    r.status === "due" ? "due" :
-    r.status === "soon" ? "soon" : "ok";
-
-  const badgeText =
-    r.status === "overdue" ? `overdue ${Math.abs(r.daysUntilDue)}d` :
-    r.status === "due" ? "due today" :
-    `in ${r.daysUntilDue}d`;
-
-  return `
-    <div class="task-row">
-      <div class="task-head">
-        <div>
-          <div class="task-check">
-            <input class="checkbox" type="checkbox" onchange="completeRoutine('${r.id}')">
-            <div class="task-title">${escapeHtml(r.title)}</div>
-          </div>
-          <div class="task-sub">${escapeHtml(roomName(r.room_id))} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}</div>
-        </div>
-        <div class="badge ${badgeClass}">${badgeText}</div>
-      </div>
-    </div>
-  `;
+    ${outStock.length ? `<div class="section" style="margin-bottom:16px;">
+      <div class="section-label">out of stock</div>
+      ${outStock.map(s => `<div class="list-row">
+        <span style="flex:1;">${esc(s.title)}</span>
+        <span class="badge badge-muted">${esc(s.room)}</span>
+        <button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>
+      </div>`).join('')}
+    </div>` : ''}
+    ${activeShopping.length ? `<div class="section">
+      <div class="section-label">shopping list</div>
+      ${activeShopping.map(item => {
+        const idx = appData.shopping.indexOf(item);
+        return `<div class="list-row">
+          <input type="checkbox" onchange="toggleShopping(${idx})">
+          <span style="flex:1;">${esc(item.name)}</span>
+        </div>`;
+      }).join('')}
+    </div>` : ''}`;
 }
 
 function renderRoutines() {
-  if (!sessionReady || !currentUser) return;
+  const panel    = document.getElementById('panel-routines');
+  const filtered = filterByRoom(appData.routines, 'routines');
+  const roomOpts = rooms.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
 
-  if (isLoading) {
-    document.getElementById("panel-routines").innerHTML = `<div class="loading">loading…</div>`;
-    return;
-  }
-
-  let enriched = appData.routines.map(r => ({ ...r, ...computeRoutineStatus(r) }));
-  enriched = filterByRoom(enriched, "routines");
-  enriched.sort((a, b) =>
-    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-    a.title.localeCompare(b.title)
-  );
-
-  document.getElementById("panel-routines").innerHTML = `
-    ${renderRoomFilters("routines")}
-    <div class="two-col">
-      <div>
-        <div class="section">
-          <div class="section-label">routines</div>
-          <div class="stack">
-            ${enriched.length ? enriched.map(renderRoutineManageRow).join("") : `<div class="empty">no routines in this view</div>`}
-          </div>
+  panel.innerHTML = `
+    ${roomFilterRow('routines', appData.routines)}
+    <div class="section" style="margin-bottom:16px;">
+      <div class="section-label">routines</div>
+      ${filtered.length ? filtered.map(r => `<div class="list-row">
+        <div style="flex:1;">
+          <div style="font-size:13px;color:var(--cream)">${esc(r.title)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(r.room)} · ${frequencyLabel(r.frequency, r.interval)}</div>
+          ${r.notes ? `<div style="font-size:10px;color:var(--faint);margin-top:2px;">${esc(r.notes)}</div>` : ''}
         </div>
-      </div>
-
-      <div>
-        <div class="section">
-          <div class="section-label">add routine</div>
-          ${rooms.length === 0 ? `<div class="empty">add rooms first</div>` : `
-          <div class="field">
-            <label for="routineTitle">title</label>
-            <input class="input" id="routineTitle" type="text" placeholder="e.g. vacuum living room">
-          </div>
-          <div class="form-grid-2">
-            <div class="field">
-              <label for="routineRoom">room</label>
-              <select class="select" id="routineRoom">
-                ${rooms.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("")}
-              </select>
-            </div>
-            <div class="field">
-              <label for="routineFrequency">frequency</label>
-              <select class="select" id="routineFrequency">
-                <option value="daily">Daily</option>
-                <option value="weekly" selected>Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="custom">Custom days</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-grid-2">
-            <div class="field">
-              <label for="routineInterval">interval</label>
-              <input class="number-input" id="routineInterval" type="number" min="1" step="1" value="1">
-            </div>
-            <div class="field">
-              <label for="routineLastCompleted">last completed</label>
-              <input class="input" id="routineLastCompleted" type="date" value="${todayISO()}">
-            </div>
-          </div>
-          <div class="field">
-            <label for="routineNotes">notes</label>
-            <textarea class="textarea" id="routineNotes" placeholder="Optional notes..."></textarea>
-          </div>
-          <button class="btn-primary" onclick="addRoutine()">save routine</button>`}
-        </div>
-
-        <div class="section">
-          <div class="section-label">rooms</div>
-          <div class="field">
-            <label for="roomName">new room</label>
-            <input class="input" id="roomName" type="text" placeholder="e.g. Garage">
-          </div>
-          <button class="btn-primary" onclick="addRoom()">add room</button>
-
-          <div class="stack" style="margin-top:14px;">
-            ${rooms.length ? rooms.map(room => {
-              const usage = roomUsageCounts(room.id);
-              const used = usage.routines + usage.stock + usage.shopping;
-
-              return `
-                <div class="task-row">
-                  <div class="task-head">
-                    <div>
-                      <div class="task-title">${escapeHtml(room.name)}</div>
-                      <div class="task-sub">
-                        ${usage.routines} routines · ${usage.stock} stock · ${usage.shopping} shopping
-                      </div>
-                    </div>
-                    <div class="badge ${used ? "ok" : "done"}">${used ? "in use" : "empty"}</div>
-                  </div>
-                  <div class="row-actions">
-                    <button class="btn-inline danger" onclick="deleteRoom('${room.id}')">delete</button>
-                  </div>
-                </div>
-              `;
-            }).join("") : `<div class="empty">no rooms yet</div>`}
-          </div>
-        </div>
-      </div>
+        <button class="btn-inline" onclick="completeRoutine('${esc(r._file)}')">done</button>
+        <button class="btn-inline" style="color:var(--red)" onclick="deleteRoutine('${esc(r._file)}')">×</button>
+      </div>`).join('') : '<div class="empty">no routines</div>'}
     </div>
-  `;
-}
-
-function renderRoutineManageRow(r) {
-  const badgeClass =
-    r.status === "overdue" ? "low" :
-    r.status === "due" ? "due" :
-    r.status === "soon" ? "soon" : "ok";
-
-  const badgeText =
-    r.status === "overdue" ? `overdue ${Math.abs(r.daysUntilDue)}d` :
-    r.status === "due" ? "due today" :
-    `in ${r.daysUntilDue}d`;
-
-  return `
-    <div class="task-row">
-      <div class="task-head">
-        <div>
-          <div class="task-title">${escapeHtml(r.title)}</div>
-          <div class="task-sub">${escapeHtml(roomName(r.room_id))} · ${escapeHtml(frequencyLabel(r.frequency, r.interval))}${r.notes ? ` · ${escapeHtml(r.notes)}` : ""}</div>
-        </div>
-        <div class="badge ${badgeClass}">${badgeText}</div>
+    <div class="section" style="margin-bottom:16px;">
+      <div class="section-label">add routine</div>
+      <div class="form-grid-2">
+        <div class="field"><label>name</label><input class="input" id="newRoutineTitle" placeholder="e.g. Clean bathroom"></div>
+        <div class="field"><label>room</label><select class="input" id="newRoutineRoom"><option value="">no room</option>${roomOpts}</select></div>
+        <div class="field"><label>frequency</label><select class="input" id="newRoutineFreq">
+          <option value="daily">daily</option>
+          <option value="weekly" selected>weekly</option>
+          <option value="biweekly">every 2 weeks</option>
+          <option value="monthly">monthly</option>
+          <option value="quarterly">quarterly</option>
+          <option value="yearly">yearly</option>
+        </select></div>
+        <div class="field"><label>every N</label><input class="input" id="newRoutineInterval" type="number" value="1" min="1"></div>
+        <div class="field" style="grid-column:1/-1"><label>notes</label><input class="input" id="newRoutineNotes" placeholder="optional"></div>
       </div>
-      <div class="row-actions">
-        <button class="btn-inline" onclick="completeRoutine('${r.id}')">complete</button>
-        <button class="btn-inline danger" onclick="deleteRoutine('${r.id}')">delete</button>
-      </div>
+      <button class="btn-primary" onclick="addRoutine()">add routine</button>
     </div>
-  `;
+    <div class="section">
+      <div class="section-label">rooms</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        ${rooms.map(r => `<span class="badge badge-muted" style="cursor:pointer" onclick="deleteRoom('${esc(r)}')">${esc(r)} ×</span>`).join('')}
+        ${!rooms.length ? '<span style="color:var(--faint);font-size:11px;">no rooms defined</span>' : ''}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input class="input" id="newRoomName" placeholder="new room name" style="flex:1">
+        <button class="btn-inline" onclick="addRoom()">add</button>
+      </div>
+    </div>`;
 }
 
 function renderStock() {
-  if (!sessionReady || !currentUser) return;
+  const panel    = document.getElementById('panel-stock');
+  const filtered = filterByRoom(appData.stock, 'stock');
+  const roomOpts = rooms.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
 
-  if (isLoading) {
-    document.getElementById("panel-stock").innerHTML = `<div class="loading">loading…</div>`;
-    return;
-  }
-
-  let items = filterByRoom(appData.stock, "stock");
-  items.sort((a, b) =>
-    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-    a.name.localeCompare(b.name)
-  );
-
-  document.getElementById("panel-stock").innerHTML = `
-    ${renderRoomFilters("stock")}
-    <div class="two-col">
-      <div>
-        <div class="section">
-          <div class="section-label">stock</div>
-          <div class="stack">
-            ${items.length ? items.map(renderStockManageRow).join("") : `<div class="empty">no stock items in this view</div>`}
-          </div>
+  panel.innerHTML = `
+    ${roomFilterRow('stock', appData.stock)}
+    <div class="section" style="margin-bottom:16px;">
+      <div class="section-label">inventory</div>
+      ${filtered.length ? filtered.map(s => `<div class="list-row">
+        <div style="flex:1;">
+          <div style="font-size:13px;color:${s.quantity === 0 ? 'var(--red)' : 'var(--cream)'}">${esc(s.title)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(s.room)}</div>
         </div>
-      </div>
-
-      <div>
-        <div class="section">
-          <div class="section-label">add item</div>
-          ${rooms.length === 0 ? `<div class="empty">add rooms first</div>` : `
-          <div class="field">
-            <label for="stockName">item</label>
-            <input class="input" id="stockName" type="text" placeholder="e.g. paper towels">
-          </div>
-          <div class="form-grid-2">
-            <div class="field">
-              <label for="stockRoom">room</label>
-              <select class="select" id="stockRoom">
-                ${rooms.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("")}
-              </select>
-            </div>
-            <div class="field">
-              <label for="stockCount">in stock</label>
-              <input class="number-input" id="stockCount" type="number" min="0" step="1" value="1">
-            </div>
-          </div>
-          <button class="btn-primary" onclick="addStockItem()">save item</button>`}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderStockCardCompact(item) {
-  const empty = Number(item.in_stock) === 0;
-  return `
-    <div class="stock-row">
-      <div class="stock-head">
-        <div>
-          <div class="stock-title">${escapeHtml(item.name)}</div>
-          <div class="stock-sub">${escapeHtml(roomName(item.room_id))} · in stock ${item.in_stock}</div>
-        </div>
-        <div class="badge ${empty ? "low" : "ok"}">${empty ? "out" : "stocked"}</div>
-      </div>
-      <div class="row-actions">
-        <button class="btn-inline" onclick="addStockToShopping('${item.id}')">add to shopping</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderStockManageRow(item) {
-  const empty = Number(item.in_stock) === 0;
-  return `
-    <div class="stock-row">
-      <div class="stock-head">
-        <div>
-          <div class="stock-title">${escapeHtml(item.name)}</div>
-          <div class="stock-sub">${escapeHtml(roomName(item.room_id))} · in stock ${item.in_stock}</div>
-        </div>
-        <div class="badge ${empty ? "low" : "ok"}">${empty ? "out of stock" : "stocked"}</div>
-      </div>
-
-      <div class="stock-controls">
         <div class="stock-qty">
-          <button class="btn-inline" onclick="adjustStock('${item.id}', -1)">−</button>
-          <div class="qty-value">${item.in_stock}</div>
-          <button class="btn-inline" onclick="adjustStock('${item.id}', 1)">+</button>
+          <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',-1)">−</button>
+          <span class="qty-value">${s.quantity}</span>
+          <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',1)">+</button>
         </div>
-
-        <div class="stock-actions">
-          <button class="btn-inline" onclick="addStockToShopping('${item.id}')">shop</button>
-          <button class="btn-inline danger" onclick="deleteStockItem('${item.id}')">delete</button>
-        </div>
-      </div>
+        ${s.quantity === 0 ? `<button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>` : ''}
+        <button class="btn-inline" style="color:var(--red)" onclick="deleteStockItem('${esc(s._file)}')">×</button>
+      </div>`).join('') : '<div class="empty">no items</div>'}
     </div>
-  `;
+    <div class="section">
+      <div class="section-label">add item</div>
+      <div class="form-grid-2">
+        <div class="field"><label>name</label><input class="input" id="newStockName" placeholder="e.g. Olive Oil"></div>
+        <div class="field"><label>room</label><select class="input" id="newStockRoom"><option value="">no room</option>${roomOpts}</select></div>
+        <div class="field"><label>quantity</label><input class="input" id="newStockQty" type="number" value="1" min="0"></div>
+      </div>
+      <button class="btn-primary" onclick="addStockItem()">add to stock</button>
+    </div>`;
 }
 
 function renderShopping() {
-  if (!sessionReady || !currentUser) return;
+  const panel  = document.getElementById('panel-shopping');
+  const active = appData.shopping.filter(s => !s.checked);
+  const done   = appData.shopping.filter(s => s.checked);
 
-  if (isLoading) {
-    document.getElementById("panel-shopping").innerHTML = `<div class="loading">loading…</div>`;
-    return;
-  }
-
-  let active = filterByRoom(appData.shopping, "shopping").filter(i => !i.checked);
-  let done = filterByRoom(appData.shopping, "shopping").filter(i => i.checked);
-
-  active.sort((a, b) =>
-    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-    a.name.localeCompare(b.name)
-  );
-
-  done.sort((a, b) =>
-    roomName(a.room_id).localeCompare(roomName(b.room_id)) ||
-    a.name.localeCompare(b.name)
-  );
-
-  document.getElementById("panel-shopping").innerHTML = `
-    ${renderRoomFilters("shopping")}
-    <div class="two-col">
-      <div>
-        <div class="section">
-          <div class="section-label">shopping list</div>
-          <div class="stack">
-            ${active.length ? active.map(renderShoppingRow).join("") : `<div class="empty">shopping list is clear</div>`}
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-label">completed</div>
-          <div class="stack">
-            ${done.length ? done.map(renderShoppingRow).join("") : `<div class="empty">nothing completed yet</div>`}
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div class="section">
-          <div class="section-label">add shopping item</div>
-          ${rooms.length === 0 ? `<div class="empty">add rooms first</div>` : `
-          <div class="field">
-            <label for="shopName">item</label>
-            <input class="input" id="shopName" type="text" placeholder="e.g. dish soap">
-          </div>
-          <div class="field">
-            <label for="shopRoom">room</label>
-            <select class="select" id="shopRoom">
-              ${rooms.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join("")}
-            </select>
-          </div>
-          <button class="btn-primary" onclick="addShoppingItem()">save item</button>`}
-        </div>
+  panel.innerHTML = `
+    <div class="section" style="margin-bottom:16px;">
+      <div class="section-label">shopping list</div>
+      ${active.map(item => {
+        const idx = appData.shopping.indexOf(item);
+        return `<div class="list-row">
+          <input type="checkbox" onchange="toggleShopping(${idx})">
+          <span style="flex:1;">${esc(item.name)}</span>
+          ${item.source !== 'manual' ? `<span class="badge badge-muted">${esc(item.source)}</span>` : ''}
+          <button class="btn-inline" style="color:var(--red)" onclick="deleteShoppingItem(${idx})">×</button>
+        </div>`;
+      }).join('') || '<div class="empty">list is clear</div>'}
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <input class="input" id="newShoppingItem" placeholder="add item" style="flex:1"
+          onkeydown="if(event.key==='Enter')addShoppingItem()">
+        <button class="btn-inline" onclick="addShoppingItem()">add</button>
       </div>
     </div>
-  `;
+    ${done.length ? `<div class="section">
+      <div class="section-label">done (${done.length})</div>
+      ${done.map(item => {
+        const idx = appData.shopping.indexOf(item);
+        return `<div class="list-row" style="opacity:0.5">
+          <input type="checkbox" checked onchange="toggleShopping(${idx})">
+          <span style="flex:1;text-decoration:line-through">${esc(item.name)}</span>
+          <button class="btn-inline" style="color:var(--red)" onclick="deleteShoppingItem(${idx})">×</button>
+        </div>`;
+      }).join('')}
+      <button class="btn-inline" onclick="clearDoneShopping()" style="margin-top:10px;">clear done</button>
+    </div>` : ''}`;
 }
 
-function renderShoppingRow(item) {
-  return `
-    <div class="shop-row">
-      <div class="shop-head">
-        <div>
-          <div class="task-check">
-            <input class="checkbox" type="checkbox" ${item.checked ? "checked" : ""} onchange="toggleShopping('${item.id}', ${item.checked ? "false" : "true"})">
-            <div class="shop-title">${escapeHtml(item.name)}</div>
-          </div>
-          <div class="shop-sub">${escapeHtml(roomName(item.room_id))} · ${escapeHtml(item.source || "manual")}</div>
-        </div>
-        <div class="badge ${item.checked ? "done" : "ok"}">${item.checked ? "done" : "active"}</div>
-      </div>
-      <div class="row-actions">
-        <button class="btn-inline danger" onclick="deleteShoppingItem('${item.id}')">delete</button>
-      </div>
-    </div>
-  `;
-}
+// ── EXPOSE GLOBALS ───────────────────────────────────────────────────────────
+Object.assign(window, {
+  pickLocalVault, signInMicrosoft, reconnectVault, confirmVaultPath, signOut,
+  switchPanel, setRoomFilter,
+  addRoutine, completeRoutine, deleteRoutine,
+  addStockItem, adjustStock, deleteStockItem, addStockToShopping,
+  addShoppingItem, toggleShopping, deleteShoppingItem, clearDoneShopping,
+  addRoom, deleteRoom,
+});
+
+init();
 
-function todayISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function diffDays(fromISO, toISO) {
-  const a = new Date(fromISO + "T00:00:00");
-  const b = new Date(toISO + "T00:00:00");
-  return Math.round((b - a) / 86400000);
-}
-
-function addDays(iso, n) {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function frequencyDays(freq, interval = 1) {
-  const i = Math.max(1, Number(interval) || 1);
-  if (freq === "daily") return 1 * i;
-  if (freq === "weekly") return 7 * i;
-  if (freq === "monthly") return 30 * i;
-  if (freq === "quarterly") return 90 * i;
-  if (freq === "custom") return i;
-  return 7;
-}
-
-function frequencyLabel(freq, interval = 1) {
-  if (freq === "custom") {
-    if (interval === 180) return "every 6 months";
-    if (interval === 365) return "yearly";
-    return `every ${interval} days`;
-  }
-  if (freq === "daily" && interval > 1) return `every ${interval} days`;
-  if (freq === "weekly" && interval > 1) return `every ${interval} weeks`;
-  if (freq === "monthly" && interval > 1) return `every ${interval} months`;
-  if (freq === "quarterly" && interval > 1) return `every ${interval * 3} months`;
-  if (freq === "quarterly") return "quarterly";
-  return freq;
-}
-
-function computeRoutineStatus(r) {
-  const base = r.last_completed || todayISO();
-  const dueDate = addDays(base, frequencyDays(r.frequency, r.interval));
-  const daysUntilDue = diffDays(todayISO(), dueDate);
-  let status = "upcoming";
-  if (daysUntilDue < 0) status = "overdue";
-  else if (daysUntilDue === 0) status = "due";
-  else if (daysUntilDue <= 3) status = "soon";
-  return { dueDate, daysUntilDue, status };
-}
-
-async function addRoutine() {
-  const title = document.getElementById("routineTitle").value.trim();
-  const room_id = document.getElementById("routineRoom").value;
-  const frequency = document.getElementById("routineFrequency").value;
-  const interval = Math.max(1, parseInt(document.getElementById("routineInterval").value, 10) || 1);
-  const last_completed = document.getElementById("routineLastCompleted").value || todayISO();
-  const notes = document.getElementById("routineNotes").value.trim();
-
-  if (!title || !room_id) {
-    showToast("enter title and room", "error");
-    return;
-  }
-
-  const { data, error } = await db
-    .from("routines")
-    .insert([{
-      title,
-      room_id,
-      frequency,
-      interval,
-      last_completed,
-      notes,
-      user_id: currentUser.id
-    }])
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to save routine", "error");
-    return;
-  }
-
-  appData.routines.push(data);
-  renderAll();
-  showToast(`saved: ${title}`, "success");
-
-  document.getElementById("routineTitle").value = "";
-  document.getElementById("routineRoom").value = rooms[0]?.id || "";
-  document.getElementById("routineFrequency").value = "weekly";
-  document.getElementById("routineInterval").value = "1";
-  document.getElementById("routineLastCompleted").value = todayISO();
-  document.getElementById("routineNotes").value = "";
-}
-
-async function completeRoutine(id) {
-  const item = appData.routines.find(r => r.id === id);
-  if (!item) return;
-
-  const last_completed = todayISO();
-  const { data, error } = await db
-    .from("routines")
-    .update({ last_completed, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to update routine", "error");
-    return;
-  }
-
-  const idx = appData.routines.findIndex(r => r.id === id);
-  appData.routines[idx] = data;
-  renderAll();
-  showToast(`completed: ${item.title}`, "success");
-}
-
-async function deleteRoutine(id) {
-  const idx = appData.routines.findIndex(r => r.id === id);
-  if (idx < 0) return;
-  const item = appData.routines[idx];
-  if (!confirm(`Delete "${item.title}"?`)) return;
-
-  const { error } = await db.from("routines").delete().eq("id", id);
-
-  if (error) {
-    console.error(error);
-    showToast("failed to delete routine", "error");
-    return;
-  }
-
-  appData.routines.splice(idx, 1);
-  renderAll();
-  showToast(`deleted: ${item.title}`, "success");
-}
-
-async function addStockItem() {
-  const name = document.getElementById("stockName").value.trim();
-  const room_id = document.getElementById("stockRoom").value;
-  const in_stock = Math.max(0, parseInt(document.getElementById("stockCount").value, 10) || 0);
-
-  if (!name || !room_id) {
-    showToast("enter item and room", "error");
-    return;
-  }
-
-  const { data, error } = await db
-    .from("stock_items")
-    .insert([{
-      name,
-      room_id,
-      in_stock,
-      user_id: currentUser.id
-    }])
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to save item", "error");
-    return;
-  }
-
-  appData.stock.push(data);
-  renderAll();
-  showToast(`saved: ${name}`, "success");
-
-  document.getElementById("stockName").value = "";
-  document.getElementById("stockRoom").value = rooms[0]?.id || "";
-  document.getElementById("stockCount").value = "1";
-}
-
-async function adjustStock(id, delta) {
-  const item = appData.stock.find(s => s.id === id);
-  if (!item) return;
-
-  const in_stock = Math.max(0, Number(item.in_stock || 0) + delta);
-
-  const { data, error } = await db
-    .from("stock_items")
-    .update({ in_stock, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to update stock", "error");
-    return;
-  }
-
-  const idx = appData.stock.findIndex(s => s.id === id);
-  appData.stock[idx] = data;
-  renderAll();
-}
-
-async function deleteStockItem(id) {
-  const idx = appData.stock.findIndex(s => s.id === id);
-  if (idx < 0) return;
-  const item = appData.stock[idx];
-  if (!confirm(`Delete "${item.name}" from stock?`)) return;
-
-  const { error } = await db.from("stock_items").delete().eq("id", id);
-
-  if (error) {
-    console.error(error);
-    showToast("failed to delete item", "error");
-    return;
-  }
-
-  appData.stock.splice(idx, 1);
-  renderAll();
-  showToast(`deleted: ${item.name}`, "success");
-}
-
-async function addStockToShopping(id) {
-  const item = appData.stock.find(s => s.id === id);
-  if (!item) return;
-
-  const exists = appData.shopping.some(s =>
-    s.name.toLowerCase() === item.name.toLowerCase() &&
-    s.room_id === item.room_id &&
-    !s.checked
-  );
-
-  if (exists) {
-    showToast("already on shopping list", "error");
-    return;
-  }
-
-  const { data, error } = await db
-    .from("shopping_items")
-    .insert([{
-      name: item.name,
-      room_id: item.room_id,
-      checked: false,
-      source: "stock",
-      user_id: currentUser.id
-    }])
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to add shopping item", "error");
-    return;
-  }
-
-  appData.shopping.push(data);
-  renderAll();
-  showToast(`added to shopping: ${item.name}`, "success");
-}
-
-async function addShoppingItem() {
-  const name = document.getElementById("shopName").value.trim();
-  const room_id = document.getElementById("shopRoom").value;
-
-  if (!name || !room_id) {
-    showToast("enter an item and room", "error");
-    return;
-  }
-
-  const { data, error } = await db
-    .from("shopping_items")
-    .insert([{
-      name,
-      room_id,
-      checked: false,
-      source: "manual",
-      user_id: currentUser.id
-    }])
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to save shopping item", "error");
-    return;
-  }
-
-  appData.shopping.push(data);
-  renderAll();
-  showToast(`saved: ${name}`, "success");
-
-  document.getElementById("shopName").value = "";
-  document.getElementById("shopRoom").value = rooms[0]?.id || "";
-}
-
-async function toggleShopping(id, nextChecked) {
-  const idx = appData.shopping.findIndex(s => s.id === id);
-  if (idx < 0) return;
-
-  const { data, error } = await db
-    .from("shopping_items")
-    .update({ checked: nextChecked, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    showToast("failed to update shopping item", "error");
-    return;
-  }
-
-  appData.shopping[idx] = data;
-  renderAll();
-}
-
-async function deleteShoppingItem(id) {
-  const idx = appData.shopping.findIndex(s => s.id === id);
-  if (idx < 0) return;
-  const item = appData.shopping[idx];
-
-  const { error } = await db.from("shopping_items").delete().eq("id", id);
-
-  if (error) {
-    console.error(error);
-    showToast("failed to delete shopping item", "error");
-    return;
-  }
-
-  appData.shopping.splice(idx, 1);
-  renderAll();
-  showToast(`deleted: ${item.name}`, "success");
-}
-
-async function addRoom() {
-  const input = document.getElementById("roomName");
-  const name = input?.value.trim();
-
-  if (!name) {
-    showToast("enter a room name", "error");
-    return;
-  }
-
-  const exists = rooms.some(r => r.name.trim().toLowerCase() === name.toLowerCase());
-  if (exists) {
-    showToast("room already exists", "error");
-    return;
-  }
-
-  try {
-    const { data, error } = await db
-      .from("rooms")
-      .insert([{
-        name,
-        sort_order: nextRoomSortOrder(),
-        user_id: currentUser.id
-      }])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    rooms.push(data);
-    rooms.sort((a, b) =>
-      (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) ||
-      a.name.localeCompare(b.name)
-    );
-
-    input.value = "";
-    renderAll();
-    showToast(`added room: ${name}`, "success");
-  } catch (err) {
-    console.error("addRoom error:", err);
-    showToast("failed to add room", "error");
-  }
-}
-
-async function deleteRoom(roomId) {
-  const room = rooms.find(r => r.id === roomId);
-  if (!room) return;
-
-  const usage = roomUsageCounts(roomId);
-  const totalUsage = usage.routines + usage.stock + usage.shopping;
-
-  if (totalUsage > 0) {
-    showToast("room is still in use", "error");
-    return;
-  }
-
-  if (!confirm(`Delete room "${room.name}"?`)) return;
-
-  try {
-    const { error } = await db
-      .from("rooms")
-      .delete()
-      .eq("id", roomId);
-
-    if (error) throw error;
-
-    rooms = rooms.filter(r => r.id !== roomId);
-
-    for (const key of Object.keys(filters)) {
-      if (filters[key] === roomId) filters[key] = "All";
-    }
-
-    renderAll();
-    showToast(`deleted room: ${room.name}`, "success");
-  } catch (err) {
-    console.error("deleteRoom error:", err);
-    showToast("failed to delete room", "error");
-  }
-}
-
-function showToast(msg, type = "") {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.className = `toast show ${type}`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function escapeJs(s) {
-  return String(s).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
-}
 </script>
 </body>
 </html>
