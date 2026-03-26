@@ -1098,10 +1098,15 @@ async function uniqueFileName(folder, title) {
 function renderSchedFields(type) {
   if (type === 'interval') return `
     <div class="field">
-      <label>every</label>
+      <label>repeat every</label>
       <div style="display:flex;align-items:center;gap:10px">
-        <input class="input" id="newRoutineInterval" type="number" value="7" min="1" style="width:90px">
-        <span style="color:var(--muted);font-size:12px;letter-spacing:.06em">days</span>
+        <input class="input" id="newRoutineInterval" type="number" value="1" min="1" style="width:80px">
+        <select class="input" id="newRoutineUnit" style="width:140px">
+          <option value="days">days</option>
+          <option value="weeks" selected>weeks</option>
+          <option value="months">months</option>
+          <option value="quarters">quarters</option>
+        </select>
       </div>
     </div>`;
   if (type === 'weekdays') return `
@@ -1154,7 +1159,10 @@ async function addRoutine() {
 
   let sched = { schedule: type, interval: 7, days: [], day: 1, month: 1 };
   if (type === 'interval') {
-    sched.interval = parseInt(document.getElementById('newRoutineInterval')?.value) || 7;
+    const n    = parseInt(document.getElementById('newRoutineInterval')?.value) || 1;
+    const unit = document.getElementById('newRoutineUnit')?.value || 'weeks';
+    const unitDays = { days: 1, weeks: 7, months: 30, quarters: 91 }[unit];
+    sched.interval = n * unitDays;
   } else if (type === 'weekdays') {
     sched.days = [...document.querySelectorAll('.day-toggle.active')].map(el => parseInt(el.dataset.day));
     if (!sched.days.length) { showToast('select at least one day', 'error'); return; }
@@ -1613,7 +1621,7 @@ function renderRoutines() {
     </div>
     <div class="section" style="margin-bottom:16px;">
       <div class="section-label">add routine</div>
-      <input type="hidden" id="newRoutineSchedule" value="interval">
+      <input type="hidden" id="newRoutineSchedule" value="weekdays">
       <div class="form-grid-2" style="margin-bottom:14px">
         <div class="field"><label>name</label><input class="input" id="newRoutineTitle" placeholder="e.g. Clean bathroom"></div>
         <div class="field"><label>room</label><select class="input" id="newRoutineRoom"><option value="">no room</option>${roomOpts}</select></div>
@@ -1621,13 +1629,13 @@ function renderRoutines() {
       <div class="field" style="margin-bottom:12px">
         <label>schedule</label>
         <div class="sched-tabs">
-          <button class="sched-tab active" data-type="interval" onclick="switchSchedType('interval')">every N days</button>
-          <button class="sched-tab" data-type="weekdays" onclick="switchSchedType('weekdays')">specific days</button>
+          <button class="sched-tab active" data-type="weekdays" onclick="switchSchedType('weekdays')">specific days</button>
+          <button class="sched-tab" data-type="interval" onclick="switchSchedType('interval')">repeating</button>
           <button class="sched-tab" data-type="monthly" onclick="switchSchedType('monthly')">day of month</button>
           <button class="sched-tab" data-type="yearly" onclick="switchSchedType('yearly')">yearly</button>
         </div>
       </div>
-      <div id="schedFields" style="margin-bottom:12px">${renderSchedFields('interval')}</div>
+      <div id="schedFields" style="margin-bottom:12px">${renderSchedFields('weekdays')}</div>
       <div class="field" style="margin-bottom:14px"><label>notes</label><input class="input" id="newRoutineNotes" placeholder="optional"></div>
       <button class="btn-primary" onclick="addRoutine()">add routine</button>
     </div>
