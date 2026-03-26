@@ -1468,7 +1468,7 @@ function renderStockManageRow(s) {
           <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',1)">+</button>
         </div>
         <div class="stock-actions">
-          ${empty ? `<button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>` : ''}
+          <button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>
           <button class="btn-inline danger" onclick="deleteStockItem('${esc(s._file)}')">delete</button>
         </div>
       </div>
