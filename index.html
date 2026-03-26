@@ -567,7 +567,119 @@ body {
 }
 </style>
 <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
-<script src="../core/stoult-core.js"></script>
+<script>
+const STOULT = (() => {
+  'use strict';
+  const GRAPH = 'https://graph.microsoft.com/v1.0';
+  const IDB_DB = 'stoult', IDB_STORE = 'handles', IDB_KEY = 'vault';
+  let _msal = null, _account = null, _token = null;
+
+  async function initMsal(clientId) {
+    if (!window.msal) return false;
+    _msal = new msal.PublicClientApplication({
+      auth: { clientId, authority: 'https://login.microsoftonline.com/consumers', redirectUri: window.location.origin + window.location.pathname },
+      cache: { cacheLocation: 'localStorage' },
+    });
+    await _msal.initialize();
+    const accounts = _msal.getAllAccounts();
+    if (accounts.length) {
+      _account = accounts[0];
+      try { const r = await _msal.acquireTokenSilent({ scopes: ['Files.ReadWrite','User.Read'], account: _account }); _token = r.accessToken; }
+      catch { _account = null; }
+    }
+    return !!_account;
+  }
+  async function signIn() {
+    const r = await _msal.loginPopup({ scopes: ['Files.ReadWrite','User.Read'] });
+    _account = r.account; _token = r.accessToken; return _account;
+  }
+  async function signOut() {
+    if (_msal && _account) { try { await _msal.logoutPopup({ account: _account }); } catch {} }
+    _account = null; _token = null;
+  }
+  function getUser() { return _account; }
+  async function getToken() {
+    if (!_account) return null;
+    try { const r = await _msal.acquireTokenSilent({ scopes: ['Files.ReadWrite','User.Read'], account: _account }); _token = r.accessToken; }
+    catch { const r = await _msal.acquireTokenPopup({ scopes: ['Files.ReadWrite','User.Read'] }); _token = r.accessToken; }
+    return _token;
+  }
+
+  async function gFetch(method, path, body, contentType) {
+    const token = await getToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    if (contentType) headers['Content-Type'] = contentType;
+    const res = await fetch(`${GRAPH}${path}`, { method, headers, body: body !== undefined ? body : undefined });
+    if (res.status === 404 || res.status === 409) return null;
+    if (!res.ok) { const err = new Error(`Graph ${method} ${path} → ${res.status}`); err.status = res.status; throw err; }
+    if (res.status === 204) return null;
+    const ct = res.headers.get('content-type') || '';
+    return ct.includes('json') ? res.json() : res.text();
+  }
+
+  const GraphStorage = {
+    _root: '',
+    init(v) { this._root = v; },
+    _p(rel) { const full = rel ? `${this._root}/${rel}` : this._root; return `/me/drive/root:/${full.split('/').map(encodeURIComponent).join('/')}`; },
+    async readFile(rel)          { return gFetch('GET', `${this._p(rel)}:/content`); },
+    async writeFile(rel, c)      { await gFetch('PUT', `${this._p(rel)}:/content`, c, 'text/plain; charset=utf-8'); },
+    async listFiles(rel)         { const r = await gFetch('GET', `${this._p(rel)}:/children?$select=name,file,folder`); return r ? r.value : []; },
+    async ensureFolder(rel)      { const parts = rel.split('/'); let cur = ''; for (const p of parts) { await gFetch('POST', `${this._p(cur)}:/children`, JSON.stringify({ name: p, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }), 'application/json'); cur = cur ? `${cur}/${p}` : p; } },
+    async deleteFile(rel)        { await gFetch('DELETE', this._p(rel)); },
+  };
+
+  const FSALStorage = {
+    _root: null,
+    async init(h) { this._root = h; await _saveHandle(h); },
+    async _traverse(rel, create = false) {
+      const parts = rel.split('/').filter(Boolean); let node = this._root;
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i], isLast = i === parts.length - 1, isFile = isLast && p.includes('.');
+        node = isFile ? await node.getFileHandle(p, { create }) : await node.getDirectoryHandle(p, { create });
+      }
+      return node;
+    },
+    async readFile(rel)     { try { const fh = await this._traverse(rel); return (await fh.getFile()).text(); } catch { return null; } },
+    async writeFile(rel, c) { const fh = await this._traverse(rel, true); const w = await fh.createWritable(); await w.write(c); await w.close(); },
+    async listFiles(rel)    { try { const dir = await this._traverse(rel); const out = []; for await (const [name, h] of dir.entries()) out.push({ name, file: h.kind === 'file' || undefined }); return out; } catch { return []; } },
+    async ensureFolder(rel) { await this._traverse(rel, true); },
+    async deleteFile(rel)   { const parts = rel.split('/').filter(Boolean); const name = parts.pop(); const dir = await this._traverse(parts.join('/')); await dir.removeEntry(name); },
+  };
+
+  function _openIDB() { return new Promise((res, rej) => { const req = indexedDB.open(IDB_DB, 1); req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE); req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e.target.error); }); }
+  async function _saveHandle(h) { const db = await _openIDB(); await new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(h, IDB_KEY); tx.oncomplete = res; tx.onerror = rej; }); }
+  async function loadHandle() { try { const db = await _openIDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const req = tx.objectStore(IDB_STORE).get(IDB_KEY); req.onsuccess = e => res(e.target.result || null); req.onerror = rej; }); } catch { return null; } }
+
+  function parseFrontmatter(raw) {
+    if (!raw) return { meta: {}, body: '' };
+    const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)/);
+    if (!m) return { meta: {}, body: raw };
+    const meta = {}, lines = m[1].split('\n'); let i = 0;
+    while (i < lines.length) {
+      const kv = lines[i].match(/^([\w-]+):\s*(.*)/); if (!kv) { i++; continue; }
+      const key = kv[1], val = kv[2].trim();
+      if (val === '') { const items = []; i++; while (i < lines.length && /^\s+-/.test(lines[i])) items.push(lines[i++].replace(/^\s+-\s*/, '').trim()); meta[key] = items; }
+      else if (val.startsWith('[') && val.endsWith(']')) { meta[key] = val.slice(1,-1).split(',').map(s => s.trim().replace(/^["']|["']$/g,'')); i++; }
+      else { meta[key] = val.replace(/^["']|["']$/g,''); i++; }
+    }
+    return { meta, body: m[2].trimEnd() };
+  }
+  function buildMarkdown(meta, body = '') {
+    const lines = ['---'];
+    for (const [k, v] of Object.entries(meta)) {
+      if (v === null || v === undefined || v === '') continue;
+      if (Array.isArray(v)) { if (!v.length) continue; lines.push(`${k}:`); v.forEach(item => lines.push(`  - ${item}`)); }
+      else lines.push(`${k}: ${v}`);
+    }
+    lines.push('---'); if (body && body.trim()) lines.push('', body.trim());
+    return lines.join('\n') + '\n';
+  }
+  function slug(s) { return String(s).toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || 'item'; }
+
+  let _storage = null;
+  return { initMsal, signIn, signOut, getUser, getToken, GraphStorage, FSALStorage, loadHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
+})();
+</script>
 </head>
 <body>
 
