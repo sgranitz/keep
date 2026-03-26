@@ -1276,8 +1276,8 @@ function renderOverview() {
 function routineRowHtml(r) {
   const { status, daysUntilDue } = computeRoutineStatus(r);
   const badgeClass =
-    status === 'overdue' ? 'badge-red' :
-    status === 'due'     ? 'badge-amber' : 'badge-muted';
+    status === 'overdue' ? 'low' :
+    status === 'due'     ? 'due' : 'soon';
   const badgeText =
     status === 'overdue' ? `overdue ${Math.abs(daysUntilDue)}d` :
     status === 'due'     ? 'due today' : `in ${daysUntilDue}d`;
@@ -1297,19 +1297,39 @@ function routineRowHtml(r) {
 }
 
 function renderStockCardCompact(s) {
-  return `<div class="list-row">
-    <span style="flex:1;">${esc(s.title)}</span>
-    <span class="badge badge-muted">${esc(s.room)}</span>
-    <button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>
-  </div>`;
+  return `
+    <div class="stock-row">
+      <div class="stock-head">
+        <div>
+          <div class="stock-title">${esc(s.title)}</div>
+          <div class="stock-sub">${esc(s.room)}</div>
+        </div>
+        <div class="badge low">out of stock</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ shopping list</button>
+      </div>
+    </div>`;
 }
 
 function renderShoppingRow(item) {
   const idx = appData.shopping.indexOf(item);
-  return `<div class="list-row">
-    <input class="checkbox" type="checkbox" onchange="toggleShopping(${idx})">
-    <span style="flex:1;">${esc(item.name)}</span>
-  </div>`;
+  return `
+    <div class="shop-row${item.checked ? '' : ''}">
+      <div class="shop-head">
+        <div>
+          <div class="task-check">
+            <input class="checkbox" type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleShopping(${idx})">
+            <div class="shop-title"${item.checked ? ' style="text-decoration:line-through;opacity:0.5"' : ''}>${esc(item.name)}</div>
+          </div>
+          ${item.source !== 'manual' ? `<div class="shop-sub">${esc(item.source)}</div>` : ''}
+        </div>
+        <div class="badge ${item.checked ? 'done' : 'ok'}">${item.checked ? 'done' : 'active'}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-inline danger" onclick="deleteShoppingItem(${idx})">delete</button>
+      </div>
+    </div>`;
 }
 
 function renderToday() {
@@ -1487,15 +1507,7 @@ function renderShopping() {
   panel.innerHTML = `
     <div class="section" style="margin-bottom:16px;">
       <div class="section-label">shopping list</div>
-      ${active.map(item => {
-        const idx = appData.shopping.indexOf(item);
-        return `<div class="list-row">
-          <input type="checkbox" onchange="toggleShopping(${idx})">
-          <span style="flex:1;">${esc(item.name)}</span>
-          ${item.source !== 'manual' ? `<span class="badge badge-muted">${esc(item.source)}</span>` : ''}
-          <button class="btn-inline" style="color:var(--red)" onclick="deleteShoppingItem(${idx})">×</button>
-        </div>`;
-      }).join('') || '<div class="empty">list is clear</div>'}
+      <div class="stack">${active.length ? active.map(renderShoppingRow).join('') : '<div class="empty">list is clear</div>'}</div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         <input class="input" id="newShoppingItem" placeholder="add item" style="flex:1"
           onkeydown="if(event.key==='Enter')addShoppingItem()">
@@ -1504,14 +1516,7 @@ function renderShopping() {
     </div>
     ${done.length ? `<div class="section">
       <div class="section-label">done (${done.length})</div>
-      ${done.map(item => {
-        const idx = appData.shopping.indexOf(item);
-        return `<div class="list-row" style="opacity:0.5">
-          <input type="checkbox" checked onchange="toggleShopping(${idx})">
-          <span style="flex:1;text-decoration:line-through">${esc(item.name)}</span>
-          <button class="btn-inline" style="color:var(--red)" onclick="deleteShoppingItem(${idx})">×</button>
-        </div>`;
-      }).join('')}
+      <div class="stack">${done.map(renderShoppingRow).join('')}</div>
       <button class="btn-inline" onclick="clearDoneShopping()" style="margin-top:10px;">clear done</button>
     </div>` : ''}`;
 }
