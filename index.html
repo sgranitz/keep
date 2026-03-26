@@ -434,6 +434,42 @@ body {
   padding: 28px 12px;
 }
 
+.sched-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sched-tab {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-family: 'Victor Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sched-tab.active, .sched-tab:hover { border-color: var(--amber); color: var(--amber); }
+
+.day-toggles { display: flex; gap: 6px; }
+.day-toggle {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-family: 'Victor Mono', monospace;
+  font-size: 11px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.day-toggle.active { background: var(--amber); border-color: var(--amber); color: #1a1612; }
+.day-toggle:hover:not(.active) { border-color: var(--amber); color: var(--amber); }
+
 .filter-row {
   display: flex;
   gap: 8px;
@@ -952,6 +988,15 @@ async function writeRooms(r) {
   );
 }
 
+function legacySchedule(meta) {
+  const freq = meta.frequency || 'weekly';
+  const n    = parseInt(meta.interval) || 1;
+  const dayMap = { daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 91, yearly: 365 };
+  if (freq === 'monthly') return { schedule: 'monthly', day: 1 };
+  if (freq === 'yearly')  return { schedule: 'yearly', month: 1, day: 1 };
+  return { schedule: 'interval', interval: (dayMap[freq] || 7) * n };
+}
+
 async function loadRoutines() {
   const files = await storage.listFiles(`${KEEP_BASE}/Routines`);
   const out   = [];
@@ -960,28 +1005,35 @@ async function loadRoutines() {
     const raw = await storage.readFile(`${KEEP_BASE}/Routines/${f.name}`);
     if (!raw) continue;
     const { meta } = STOULT.parseFrontmatter(raw);
+    const sched = meta.schedule
+      ? { schedule: meta.schedule, interval: parseInt(meta.interval) || 1,
+          days: Array.isArray(meta.days) ? meta.days.map(Number) : [],
+          day: parseInt(meta.day) || 1, month: parseInt(meta.month) || 1 }
+      : { days: [], day: 1, month: 1, interval: 7, ...legacySchedule(meta) };
     out.push({
       _file:          f.name,
-      title:          meta.title        || f.name.replace('.md', ''),
-      room:           meta.room         || '',
-      frequency:      meta.frequency    || 'weekly',
-      interval:       parseInt(meta.interval) || 1,
+      title:          meta.title          || f.name.replace('.md', ''),
+      room:           meta.room           || '',
       last_completed: meta.last_completed || '',
-      notes:          meta.notes        || '',
-      created:        meta.created      || todayISO(),
+      notes:          meta.notes          || '',
+      created:        meta.created        || todayISO(),
+      ...sched,
     });
   }
   return out;
 }
 
 async function writeRoutine(r) {
-  await storage.writeFile(`${KEEP_BASE}/Routines/${r._file}`,
-    STOULT.buildMarkdown({
-      title: r.title, room: r.room, frequency: r.frequency,
-      interval: r.interval, last_completed: r.last_completed || '',
-      notes: r.notes || '', tags: ['keep', 'routine'], created: r.created || todayISO(),
-    })
-  );
+  const meta = {
+    title: r.title, room: r.room, schedule: r.schedule,
+    last_completed: r.last_completed || '',
+    notes: r.notes || '', tags: ['keep', 'routine'], created: r.created || todayISO(),
+  };
+  if (r.schedule === 'interval')  meta.interval = r.interval;
+  if (r.schedule === 'weekdays')  meta.days     = r.days;
+  if (r.schedule === 'monthly')   meta.day      = r.day;
+  if (r.schedule === 'yearly') { meta.month = r.month; meta.day = r.day; }
+  await storage.writeFile(`${KEEP_BASE}/Routines/${r._file}`, STOULT.buildMarkdown(meta));
 }
 
 async function loadStock() {
@@ -1043,16 +1095,78 @@ async function uniqueFileName(folder, title) {
 }
 
 // ── CRUD: ROUTINES ──────────────────────────────────────────────────────────
+function renderSchedFields(type) {
+  if (type === 'interval') return `
+    <div class="field">
+      <label>every</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input class="input" id="newRoutineInterval" type="number" value="7" min="1" style="width:90px">
+        <span style="color:var(--muted);font-size:12px;letter-spacing:.06em">days</span>
+      </div>
+    </div>`;
+  if (type === 'weekdays') return `
+    <div class="field">
+      <label>days</label>
+      <div class="day-toggles">
+        ${['S','M','T','W','T','F','S'].map((d, i) =>
+          `<button class="day-toggle" data-day="${i}" onclick="this.classList.toggle('active')">${d}</button>`
+        ).join('')}
+      </div>
+    </div>`;
+  if (type === 'monthly') return `
+    <div class="field">
+      <label>day of month</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input class="input" id="newRoutineMonthDay" type="number" value="1" min="1" max="28" style="width:90px">
+        <span style="color:var(--muted);font-size:12px;letter-spacing:.06em">of each month</span>
+      </div>
+    </div>`;
+  if (type === 'yearly') return `
+    <div class="form-grid-2">
+      <div class="field">
+        <label>month</label>
+        <select class="input" id="newRoutineYearMonth">
+          ${MONTH_NAMES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>day</label>
+        <input class="input" id="newRoutineYearDay" type="number" value="1" min="1" max="31">
+      </div>
+    </div>`;
+  return '';
+}
+
+function switchSchedType(type) {
+  document.querySelectorAll('.sched-tab').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+  const hidden = document.getElementById('newRoutineSchedule');
+  if (hidden) hidden.value = type;
+  const fields = document.getElementById('schedFields');
+  if (fields) fields.innerHTML = renderSchedFields(type);
+}
+
 async function addRoutine() {
-  const title    = document.getElementById('newRoutineTitle').value.trim();
-  const room     = document.getElementById('newRoutineRoom').value;
-  const frequency = document.getElementById('newRoutineFreq').value;
-  const interval = parseInt(document.getElementById('newRoutineInterval').value) || 1;
-  const notes    = document.getElementById('newRoutineNotes').value.trim();
+  const title = document.getElementById('newRoutineTitle').value.trim();
+  const room  = document.getElementById('newRoutineRoom').value;
+  const notes = document.getElementById('newRoutineNotes').value.trim();
+  const type  = document.getElementById('newRoutineSchedule')?.value || 'interval';
   if (!title) return;
 
+  let sched = { schedule: type, interval: 7, days: [], day: 1, month: 1 };
+  if (type === 'interval') {
+    sched.interval = parseInt(document.getElementById('newRoutineInterval')?.value) || 7;
+  } else if (type === 'weekdays') {
+    sched.days = [...document.querySelectorAll('.day-toggle.active')].map(el => parseInt(el.dataset.day));
+    if (!sched.days.length) { showToast('select at least one day', 'error'); return; }
+  } else if (type === 'monthly') {
+    sched.day = parseInt(document.getElementById('newRoutineMonthDay')?.value) || 1;
+  } else if (type === 'yearly') {
+    sched.month = parseInt(document.getElementById('newRoutineYearMonth')?.value) || 1;
+    sched.day   = parseInt(document.getElementById('newRoutineYearDay')?.value)   || 1;
+  }
+
   const fileName = await uniqueFileName('Routines', title);
-  const routine  = { _file: fileName, title, room, frequency, interval, notes, last_completed: '', created: todayISO() };
+  const routine  = { _file: fileName, title, room, notes, last_completed: '', created: todayISO(), ...sched };
   await writeRoutine(routine);
   appData.routines.push(routine);
   document.getElementById('newRoutineTitle').value = '';
@@ -1185,30 +1299,127 @@ function diffDays(from, to) {
   return Math.round((b - a) / 86400000);
 }
 
-function frequencyDays(freq, interval) {
-  const base = { daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 90, yearly: 365 }[freq] || 7;
-  return base * (parseInt(interval) || 1);
+const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function ordinal(n) {
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function frequencyLabel(freq, interval) {
-  const n = parseInt(interval) || 1;
-  if (freq === 'daily')     return n > 1 ? `every ${n} days`   : 'daily';
-  if (freq === 'weekly')    return n > 1 ? `every ${n} weeks`  : 'weekly';
-  if (freq === 'biweekly')  return 'every 2 weeks';
-  if (freq === 'monthly')   return n > 1 ? `every ${n} months` : 'monthly';
-  if (freq === 'quarterly') return 'quarterly';
-  if (freq === 'yearly')    return 'yearly';
-  return freq;
+function arrEq(a, b) { return a.length === b.length && a.every((v, i) => v === b[i]); }
+
+function frequencyLabel(r) {
+  // accepts routine object or (legacy) (freq, interval) args
+  if (typeof r === 'string') {
+    // legacy call: frequencyLabel(freq, interval)
+    const freq = r, n = parseInt(arguments[1]) || 1;
+    const dayMap = { daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 91, yearly: 365 };
+    const days = (dayMap[freq] || 7) * n;
+    return days === 1 ? 'daily' : days === 7 ? 'weekly' : days === 14 ? 'every 2 weeks' : `every ${days} days`;
+  }
+  switch (r.schedule) {
+    case 'interval': {
+      const i = r.interval || 1;
+      if (i === 1)  return 'daily';
+      if (i === 7)  return 'weekly';
+      if (i === 14) return 'every 2 weeks';
+      if (i === 30) return 'monthly';
+      return `every ${i} days`;
+    }
+    case 'weekdays': {
+      const days = (r.days || []).slice().sort((a, b) => a - b);
+      if (days.length === 7)             return 'every day';
+      if (arrEq(days, [1,2,3,4,5]))     return 'weekdays';
+      if (arrEq(days, [0,6]))            return 'weekends';
+      if (arrEq(days, [1,3,5]))         return 'Mon · Wed · Fri';
+      if (arrEq(days, [2,4]))           return 'Tue · Thu';
+      return days.map(d => DAY_NAMES[d]).join(' · ');
+    }
+    case 'monthly':
+      return `${ordinal(r.day || 1)} of month`;
+    case 'yearly':
+      return `${MONTH_NAMES[(r.month || 1) - 1]} ${r.day || 1}`;
+    default:
+      return r.schedule || 'weekly';
+  }
 }
 
 function computeRoutineStatus(r) {
-  const period    = frequencyDays(r.frequency, r.interval);
-  const daysSince = r.last_completed ? diffDays(r.last_completed, todayISO()) : period + 1;
-  const daysUntilDue = period - daysSince;
+  const today = todayISO();
+  const todayMs = new Date(today + 'T00:00:00').getTime();
+  let daysUntilDue = 999;
+
+  switch (r.schedule) {
+    case 'interval': {
+      const base    = r.last_completed || r.created || today;
+      const nextDue = addDays(base, r.interval || 7);
+      daysUntilDue  = diffDays(today, nextDue);
+      break;
+    }
+    case 'weekdays': {
+      const days = r.days || [];
+      if (!days.length) break;
+      const todayDay = new Date(todayMs).getDay();
+      if (days.includes(todayDay) && r.last_completed !== today) {
+        daysUntilDue = 0;
+      } else {
+        for (let i = 1; i <= 7; i++) {
+          if (days.includes((todayDay + i) % 7)) { daysUntilDue = i; break; }
+        }
+      }
+      break;
+    }
+    case 'monthly': {
+      const d = r.day || 1;
+      const now = new Date(todayMs);
+      const y = now.getFullYear(), m = now.getMonth();
+      const thisTarget = new Date(y, m, d);
+      const thisTargetISO = thisTarget.toISOString().slice(0, 10);
+      if (today < thisTargetISO) {
+        daysUntilDue = Math.round((thisTarget.getTime() - todayMs) / 86400000);
+      } else if (today === thisTargetISO) {
+        daysUntilDue = (r.last_completed === today) ? Math.round((new Date(y, m + 1, d).getTime() - todayMs) / 86400000) : 0;
+      } else {
+        if (!r.last_completed || r.last_completed < thisTargetISO) {
+          daysUntilDue = diffDays(today, thisTargetISO); // negative = overdue
+        } else {
+          daysUntilDue = Math.round((new Date(y, m + 1, d).getTime() - todayMs) / 86400000);
+        }
+      }
+      break;
+    }
+    case 'yearly': {
+      const mo = (r.month || 1) - 1, d = r.day || 1;
+      const y = new Date(todayMs).getFullYear();
+      const thisTarget = new Date(y, mo, d);
+      const thisTargetISO = thisTarget.toISOString().slice(0, 10);
+      if (today < thisTargetISO) {
+        daysUntilDue = Math.round((thisTarget.getTime() - todayMs) / 86400000);
+      } else if (today === thisTargetISO) {
+        daysUntilDue = (r.last_completed === today) ? Math.round((new Date(y + 1, mo, d).getTime() - todayMs) / 86400000) : 0;
+      } else {
+        if (!r.last_completed || r.last_completed < thisTargetISO) {
+          daysUntilDue = diffDays(today, thisTargetISO);
+        } else {
+          daysUntilDue = Math.round((new Date(y + 1, mo, d).getTime() - todayMs) / 86400000);
+        }
+      }
+      break;
+    }
+    default: {
+      // Legacy frequency field
+      const dayMap = { daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 91, yearly: 365 };
+      const period  = (dayMap[r.frequency] || 7) * (r.interval || 1);
+      const base    = r.last_completed || r.created || today;
+      daysUntilDue  = diffDays(today, addDays(base, period));
+    }
+  }
+
   const status =
-    daysSince > period  ? 'overdue' :
-    daysUntilDue <= 0   ? 'due'     :
-    daysUntilDue <= 2   ? 'soon'    : 'upcoming';
+    daysUntilDue < 0   ? 'overdue' :
+    daysUntilDue === 0 ? 'due'     :
+    daysUntilDue <= 2  ? 'soon'    : 'upcoming';
   return { status, daysUntilDue };
 }
 
@@ -1289,7 +1500,7 @@ function routineRowHtml(r) {
             <input class="checkbox" type="checkbox" onchange="completeRoutine('${esc(r._file)}')">
             <div class="task-title">${esc(r.title)}</div>
           </div>
-          <div class="task-sub">${esc(r.room)} · ${frequencyLabel(r.frequency, r.interval)}</div>
+          <div class="task-sub">${esc(r.room)} · ${frequencyLabel(r)}</div>
         </div>
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
@@ -1396,20 +1607,22 @@ function renderRoutines() {
     </div>
     <div class="section" style="margin-bottom:16px;">
       <div class="section-label">add routine</div>
-      <div class="form-grid-2">
+      <input type="hidden" id="newRoutineSchedule" value="interval">
+      <div class="form-grid-2" style="margin-bottom:14px">
         <div class="field"><label>name</label><input class="input" id="newRoutineTitle" placeholder="e.g. Clean bathroom"></div>
         <div class="field"><label>room</label><select class="input" id="newRoutineRoom"><option value="">no room</option>${roomOpts}</select></div>
-        <div class="field"><label>frequency</label><select class="input" id="newRoutineFreq">
-          <option value="daily">daily</option>
-          <option value="weekly" selected>weekly</option>
-          <option value="biweekly">every 2 weeks</option>
-          <option value="monthly">monthly</option>
-          <option value="quarterly">quarterly</option>
-          <option value="yearly">yearly</option>
-        </select></div>
-        <div class="field"><label>every N</label><input class="input" id="newRoutineInterval" type="number" value="1" min="1"></div>
-        <div class="field" style="grid-column:1/-1"><label>notes</label><input class="input" id="newRoutineNotes" placeholder="optional"></div>
       </div>
+      <div class="field" style="margin-bottom:12px">
+        <label>schedule</label>
+        <div class="sched-tabs">
+          <button class="sched-tab active" data-type="interval" onclick="switchSchedType('interval')">every N days</button>
+          <button class="sched-tab" data-type="weekdays" onclick="switchSchedType('weekdays')">specific days</button>
+          <button class="sched-tab" data-type="monthly" onclick="switchSchedType('monthly')">day of month</button>
+          <button class="sched-tab" data-type="yearly" onclick="switchSchedType('yearly')">yearly</button>
+        </div>
+      </div>
+      <div id="schedFields" style="margin-bottom:12px">${renderSchedFields('interval')}</div>
+      <div class="field" style="margin-bottom:14px"><label>notes</label><input class="input" id="newRoutineNotes" placeholder="optional"></div>
       <button class="btn-primary" onclick="addRoutine()">add routine</button>
     </div>
     <div class="section">
@@ -1439,7 +1652,7 @@ function renderRoutineManageRow(r) {
       <div class="task-head">
         <div>
           <div class="task-title">${esc(r.title)}</div>
-          <div class="task-sub">${esc(r.room)} · ${frequencyLabel(r.frequency, r.interval)}${r.notes ? ` · ${esc(r.notes)}` : ''}</div>
+          <div class="task-sub">${esc(r.room)} · ${frequencyLabel(r)}${r.notes ? ` · ${esc(r.notes)}` : ''}</div>
         </div>
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
@@ -1523,6 +1736,7 @@ function renderShopping() {
 Object.assign(window, {
   pickLocalVault, signInMicrosoft, reconnectVault, confirmVaultPath, signOut,
   switchPanel, setRoomFilter,
+  switchSchedType,
   addRoutine, completeRoutine, deleteRoutine,
   addStockItem, adjustStock, deleteStockItem, addStockToShopping,
   addShoppingItem, toggleShopping, deleteShoppingItem, clearDoneShopping,
