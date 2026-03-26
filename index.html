@@ -1322,9 +1322,7 @@ function renderShoppingRow(item) {
             <input class="checkbox" type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleShopping(${idx})">
             <div class="shop-title"${item.checked ? ' style="text-decoration:line-through;opacity:0.5"' : ''}>${esc(item.name)}</div>
           </div>
-          ${item.source !== 'manual' ? `<div class="shop-sub">${esc(item.source)}</div>` : ''}
         </div>
-        <div class="badge ${item.checked ? 'done' : 'ok'}">${item.checked ? 'done' : 'active'}</div>
       </div>
       <div class="row-actions">
         <button class="btn-inline danger" onclick="deleteShoppingItem(${idx})">delete</button>
