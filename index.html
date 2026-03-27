@@ -602,66 +602,157 @@ body {
   display: block;
 }
 </style>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
 <script>
 const STOULT = (() => {
   'use strict';
-  const GRAPH = 'https://graph.microsoft.com/v1.0';
+  const DRIVE = 'https://www.googleapis.com/drive/v3';
   const IDB_DB = 'stoult', IDB_STORE = 'handles', IDB_KEY = 'vault';
-  let _msal = null, _account = null, _token = null;
+  const GTOKEN_KEY = 'stoult_gtoken', GTOKEN_EXP_KEY = 'stoult_gtoken_exp', GUSER_KEY = 'stoult_guser';
+  let _tokenClient = null, _token = null, _tokenExp = 0, _user = null;
 
-  async function initMsal(clientId) {
-    if (!window.msal) return false;
-    _msal = new msal.PublicClientApplication({
-      auth: { clientId, authority: 'https://login.microsoftonline.com/consumers', redirectUri: window.location.origin + window.location.pathname },
-      cache: { cacheLocation: 'localStorage' },
+  async function initGoogle(clientId) {
+    if (!window.google?.accounts?.oauth2) return false;
+    _tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive',
+      callback: () => {},
     });
-    await _msal.initialize();
-    const accounts = _msal.getAllAccounts();
-    if (accounts.length) {
-      _account = accounts[0];
-      try { const r = await _msal.acquireTokenSilent({ scopes: ['Files.ReadWrite','User.Read'], account: _account }); _token = r.accessToken; }
-      catch { _account = null; }
+    const storedToken = localStorage.getItem(GTOKEN_KEY);
+    const storedExp   = parseInt(localStorage.getItem(GTOKEN_EXP_KEY) || '0');
+    const storedUser  = localStorage.getItem(GUSER_KEY);
+    if (storedToken && storedExp > Date.now() + 60000 && storedUser) {
+      _token = storedToken; _tokenExp = storedExp; _user = JSON.parse(storedUser);
+      return true;
     }
-    return !!_account;
+    return false;
   }
-  async function signIn() {
-    const r = await _msal.loginPopup({ scopes: ['Files.ReadWrite','User.Read'] });
-    _account = r.account; _token = r.accessToken; return _account;
+  function signIn() {
+    return new Promise((resolve, reject) => {
+      _tokenClient.callback = async (resp) => {
+        if (resp.error) { reject(new Error(resp.error)); return; }
+        _token = resp.access_token;
+        _tokenExp = Date.now() + (resp.expires_in || 3600) * 1000;
+        localStorage.setItem(GTOKEN_KEY, _token);
+        localStorage.setItem(GTOKEN_EXP_KEY, String(_tokenExp));
+        try {
+          const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${_token}` } });
+          _user = r.ok ? await r.json() : { name: 'Google User' };
+        } catch { _user = { name: 'Google User' }; }
+        localStorage.setItem(GUSER_KEY, JSON.stringify(_user));
+        resolve(_user);
+      };
+      _tokenClient.requestAccessToken();
+    });
   }
-  async function signOut() {
-    if (_msal && _account) { try { await _msal.logoutPopup({ account: _account }); } catch {} }
-    _account = null; _token = null;
+  function signOut() {
+    if (_token) { try { google.accounts.oauth2.revoke(_token, () => {}); } catch {} }
+    _token = null; _tokenExp = 0; _user = null;
+    localStorage.removeItem(GTOKEN_KEY); localStorage.removeItem(GTOKEN_EXP_KEY); localStorage.removeItem(GUSER_KEY);
   }
-  function getUser() { return _account; }
+  function getUser() { return _user; }
   async function getToken() {
-    if (!_account) return null;
-    try { const r = await _msal.acquireTokenSilent({ scopes: ['Files.ReadWrite','User.Read'], account: _account }); _token = r.accessToken; }
-    catch { const r = await _msal.acquireTokenPopup({ scopes: ['Files.ReadWrite','User.Read'] }); _token = r.accessToken; }
-    return _token;
+    if (_token && _tokenExp > Date.now() + 60000) return _token;
+    return new Promise((resolve, reject) => {
+      _tokenClient.callback = async (resp) => {
+        if (resp.error) { reject(new Error(resp.error)); return; }
+        _token = resp.access_token;
+        _tokenExp = Date.now() + (resp.expires_in || 3600) * 1000;
+        localStorage.setItem(GTOKEN_KEY, _token); localStorage.setItem(GTOKEN_EXP_KEY, String(_tokenExp));
+        resolve(_token);
+      };
+      _tokenClient.requestAccessToken({ prompt: '' });
+    });
   }
 
-  async function gFetch(method, path, body, contentType) {
+  async function dFetch(method, path, body, contentType) {
     const token = await getToken();
     const headers = { Authorization: `Bearer ${token}` };
     if (contentType) headers['Content-Type'] = contentType;
-    const res = await fetch(`${GRAPH}${path}`, { method, headers, body: body !== undefined ? body : undefined });
-    if (res.status === 404 || res.status === 409) return null;
-    if (!res.ok) { const err = new Error(`Graph ${method} ${path} → ${res.status}`); err.status = res.status; throw err; }
+    const res = await fetch(`${DRIVE}${path}`, { method, headers, body: body !== undefined ? body : undefined });
+    if (res.status === 404) return null;
+    if (!res.ok) { const err = new Error(`Drive ${method} ${path} → ${res.status}`); err.status = res.status; throw err; }
     if (res.status === 204) return null;
     const ct = res.headers.get('content-type') || '';
     return ct.includes('json') ? res.json() : res.text();
   }
 
-  const GraphStorage = {
-    _root: '',
-    init(v) { this._root = v; },
-    _p(rel) { const full = rel ? `${this._root}/${rel}` : this._root; return `/me/drive/root:/${full.split('/').map(encodeURIComponent).join('/')}`; },
-    async readFile(rel)          { return gFetch('GET', `${this._p(rel)}:/content`); },
-    async writeFile(rel, c)      { await gFetch('PUT', `${this._p(rel)}:/content`, c, 'text/plain; charset=utf-8'); },
-    async listFiles(rel)         { const r = await gFetch('GET', `${this._p(rel)}:/children?$select=name,file,folder`); return r ? r.value : []; },
-    async ensureFolder(rel)      { const parts = rel.split('/'); let cur = ''; for (const p of parts) { await gFetch('POST', `${this._p(cur)}:/children`, JSON.stringify({ name: p, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }), 'application/json'); cur = cur ? `${cur}/${p}` : p; } },
-    async deleteFile(rel)        { await gFetch('DELETE', this._p(rel)); },
+  const DriveStorage = {
+    _rootId: null,
+    _cache: {},
+    init(rootFolderId) { this._rootId = rootFolderId; this._cache = {}; },
+    async _findChild(parentId, name, isFolder) {
+      const mime = isFolder ? "mimeType='application/vnd.google-apps.folder'" : "mimeType!='application/vnd.google-apps.folder'";
+      const q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false and ${mime}`;
+      const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id)`);
+      return r?.files?.[0]?.id || null;
+    },
+    async _folder(rel, create = false) {
+      if (!rel) return this._rootId;
+      const parts = rel.split('/').filter(Boolean);
+      let cur = this._rootId;
+      for (const name of parts) {
+        const key = `d:${cur}:${name}`;
+        if (this._cache[key]) { cur = this._cache[key]; continue; }
+        let id = await this._findChild(cur, name, true);
+        if (!id) {
+          if (!create) return null;
+          const r = await dFetch('POST', '/files?fields=id', JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [cur] }), 'application/json');
+          id = r?.id;
+        }
+        if (!id) return null;
+        this._cache[key] = id; cur = id;
+      }
+      return cur;
+    },
+    async readFile(rel) {
+      const parts = rel.split('/'); const name = parts.pop();
+      const parentId = await this._folder(parts.join('/'), false);
+      if (!parentId) return null;
+      const key = `f:${parentId}:${name}`;
+      const id = this._cache[key] || await this._findChild(parentId, name, false);
+      if (!id) return null;
+      if (!this._cache[key]) this._cache[key] = id;
+      const token = await getToken();
+      const res = await fetch(`${DRIVE}/files/${id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
+      return res.ok ? res.text() : null;
+    },
+    async writeFile(rel, content) {
+      const parts = rel.split('/'); const name = parts.pop();
+      const parentId = await this._folder(parts.join('/'), true);
+      const key = `f:${parentId}:${name}`;
+      let fileId = this._cache[key] || await this._findChild(parentId, name, false);
+      if (fileId && !this._cache[key]) this._cache[key] = fileId;
+      const token = await getToken();
+      if (fileId) {
+        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+          method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain; charset=utf-8' }, body: content,
+        });
+      } else {
+        const meta = JSON.stringify({ name, parents: [parentId], mimeType: 'text/plain' });
+        const body = `--stoult_b\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--stoult_b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${content}\r\n--stoult_b--`;
+        const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/related; boundary=stoult_b' }, body,
+        });
+        if (r.ok) { const j = await r.json(); this._cache[key] = j.id; }
+      }
+    },
+    async listFiles(rel) {
+      const folderId = await this._folder(rel, false);
+      if (!folderId) return [];
+      const q = `'${folderId}' in parents and trashed=false`;
+      const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&pageSize=1000`);
+      return (r?.files || []).map(f => ({ name: f.name, file: f.mimeType !== 'application/vnd.google-apps.folder' ? true : undefined }));
+    },
+    async ensureFolder(rel) { await this._folder(rel, true); },
+    async deleteFile(rel) {
+      const parts = rel.split('/'); const name = parts.pop();
+      const parentId = await this._folder(parts.join('/'), false);
+      if (!parentId) return;
+      const key = `f:${parentId}:${name}`;
+      const id = this._cache[key] || await this._findChild(parentId, name, false);
+      if (id) { await dFetch('DELETE', `/files/${id}`); delete this._cache[key]; }
+    },
   };
 
   const FSALStorage = {
@@ -713,7 +804,7 @@ const STOULT = (() => {
   function slug(s) { return String(s).toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || 'item'; }
 
   let _storage = null;
-  return { initMsal, signIn, signOut, getUser, getToken, GraphStorage, FSALStorage, loadHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
+  return { initGoogle, signIn, signOut, getUser, getToken, DriveStorage, FSALStorage, loadHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
 })();
 </script>
 </head>
@@ -759,11 +850,11 @@ const STOULT = (() => {
 <div id="authGate" class="section" style="display:none; max-width:560px;">
   <div class="section-label">connect vault</div>
   <div class="auth-copy">
-    Pick your vault folder on this device, or sign in with Microsoft to access your OneDrive vault from any device including mobile.
+    Pick your vault folder on this device, or sign in with Google to access your Drive vault from any device.
   </div>
   <div id="setupOptions" style="display:flex; flex-direction:column; gap:10px;">
     <button class="btn-primary" onclick="pickLocalVault()">pick local folder</button>
-    <button class="btn-inline" onclick="signInMicrosoft()">sign in with microsoft</button>
+    <button class="btn-inline" onclick="signInGoogle()">sign in with google</button>
   </div>
   <div id="reconnectRow" style="display:none; margin-top:14px;">
     <div class="auth-copy">Your vault was previously connected. Tap to reconnect.</div>
@@ -771,8 +862,8 @@ const STOULT = (() => {
   </div>
   <div id="vaultPathRow" style="display:none; margin-top:14px;">
     <div class="field">
-      <label for="vaultPathInput">vault folder name in OneDrive</label>
-      <input class="input" id="vaultPathInput" placeholder="e.g. seg">
+      <label for="vaultPathInput">vault folder name in Google Drive</label>
+      <input class="input" id="vaultPathInput" placeholder="e.g. seg" value="seg">
     </div>
     <button class="btn-primary" onclick="confirmVaultPath()" style="margin-top:8px;">connect</button>
   </div>
@@ -800,16 +891,16 @@ const STOULT = (() => {
 </footer>
 
 <script>
-// ── To enable Microsoft sign-in (mobile + any device): ────────────────────
-// 1. Go to portal.azure.com → Azure Active Directory → App registrations
-// 2. New registration → name "Stoult Tools" → Accounts in any org + personal
-// 3. Add redirect URI: Web → https://stoult.com/keep/ (and other tool URLs)
-// 4. Under API permissions → Add → Microsoft Graph → Files.ReadWrite + User.Read
-// 5. Paste your Application (client) ID below:
-const CLIENT_ID = 'YOUR_AZURE_CLIENT_ID';
+// ── To enable Google sign-in (mobile + any device): ──────────────────────
+// 1. Go to console.cloud.google.com → New project → enable Drive API
+// 2. Credentials → Create OAuth 2.0 Client ID → Web application
+// 3. Authorized JS origins: https://stoult.com (and http://localhost for dev)
+// 4. Paste your Client ID below:
+const GOOGLE_CLIENT_ID = '829248142619-hvklu048j23gft4m0d5jeg8l1hjv2lid.apps.googleusercontent.com';
 
 const KEEP_BASE      = 'References/Keep';
 const VAULT_PATH_KEY = 'stoult_vault_path';
+const DRIVE_ROOT_KEY = 'stoult_drive_root';
 
 let storage    = null;
 let rooms      = [];
@@ -831,10 +922,10 @@ async function init() {
     if (perm === 'prompt')  { return showReconnectGate(handle); }
   }
 
-  // 2. Try MSAL (any device, requires CLIENT_ID)
-  if (CLIENT_ID !== 'YOUR_AZURE_CLIENT_ID') {
-    const hasSession = await STOULT.initMsal(CLIENT_ID);
-    if (hasSession) { return initWithGraph(); }
+  // 2. Try Google silent auth (any device, requires GOOGLE_CLIENT_ID)
+  if (GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID') {
+    const hasSession = await STOULT.initGoogle(GOOGLE_CLIENT_ID);
+    if (hasSession) { return initWithDrive(); }
   }
 
   showSetupGate();
@@ -845,9 +936,8 @@ function showSetupGate() {
   document.getElementById('setupOptions').style.display  = '';
   document.getElementById('reconnectRow').style.display  = 'none';
   document.getElementById('vaultPathRow').style.display  = 'none';
-  // Hide MS sign-in button if no CLIENT_ID configured
-  if (CLIENT_ID === 'YOUR_AZURE_CLIENT_ID') {
-    document.querySelector('[onclick="signInMicrosoft()"]').style.display = 'none';
+  if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID') {
+    document.querySelector('[onclick="signInGoogle()"]').style.display = 'none';
   }
 }
 
@@ -886,27 +976,30 @@ async function initWithFSAL(handle) {
   await loadAll();
 }
 
-async function signInMicrosoft() {
+async function signInGoogle() {
   try {
-    if (CLIENT_ID === 'YOUR_AZURE_CLIENT_ID') {
-      showToast('Microsoft CLIENT_ID not configured', 'error');
+    if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID') {
+      showToast('Google CLIENT_ID not configured', 'error');
       return;
     }
-    await STOULT.initMsal(CLIENT_ID);
+    await STOULT.initGoogle(GOOGLE_CLIENT_ID);
     await STOULT.signIn();
-    await initWithGraph();
+    document.getElementById('authGate').style.display     = '';
+    document.getElementById('setupOptions').style.display = 'none';
+    document.getElementById('reconnectRow').style.display = 'none';
+    document.getElementById('vaultPathRow').style.display = '';
   } catch (e) {
     showToast('Sign-in failed', 'error');
     console.error(e);
   }
 }
 
-async function initWithGraph() {
+async function initWithDrive() {
   const user = STOULT.getUser();
   if (!user) { showSetupGate(); return; }
 
-  const vaultPath = localStorage.getItem(VAULT_PATH_KEY);
-  if (!vaultPath) {
+  const rootId = localStorage.getItem(DRIVE_ROOT_KEY);
+  if (!rootId) {
     document.getElementById('authGate').style.display     = '';
     document.getElementById('setupOptions').style.display = 'none';
     document.getElementById('reconnectRow').style.display = 'none';
@@ -914,18 +1007,30 @@ async function initWithGraph() {
     return;
   }
 
-  STOULT.GraphStorage.init(vaultPath);
-  storage = STOULT.GraphStorage;
+  STOULT.DriveStorage.init(rootId);
+  storage = STOULT.DriveStorage;
   STOULT.setStorage(storage);
   showApp(user);
   await loadAll();
 }
 
 async function confirmVaultPath() {
-  const path = document.getElementById('vaultPathInput').value.trim();
-  if (!path) return;
-  localStorage.setItem(VAULT_PATH_KEY, path);
-  await initWithGraph();
+  const name = document.getElementById('vaultPathInput').value.trim();
+  if (!name) return;
+  try {
+    const token = await STOULT.getToken();
+    const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`;
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!data.files?.length) { showToast(`Folder "${name}" not found in Drive`, 'error'); return; }
+    localStorage.setItem(DRIVE_ROOT_KEY, data.files[0].id);
+    await initWithDrive();
+  } catch (e) {
+    showToast('Could not find vault folder', 'error');
+    console.error(e);
+  }
 }
 
 function showApp(user) {
@@ -934,7 +1039,7 @@ function showApp(user) {
   document.getElementById('signOutBtn').style.display = '';
   document.getElementById('statusLabel').textContent = 'connected';
   document.getElementById('userEmail').textContent   =
-    user.username || user.displayName || user.name || 'vault';
+    user.email || user.username || user.displayName || user.name || 'vault';
 }
 
 async function signOut() {
@@ -1748,7 +1853,7 @@ function renderShopping() {
 
 // ── EXPOSE GLOBALS ───────────────────────────────────────────────────────────
 Object.assign(window, {
-  pickLocalVault, signInMicrosoft, reconnectVault, confirmVaultPath, signOut,
+  pickLocalVault, signInGoogle, reconnectVault, confirmVaultPath, signOut,
   switchPanel, setRoomFilter,
   switchSchedType,
   addRoutine, completeRoutine, deleteRoutine,
