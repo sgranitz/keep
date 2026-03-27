@@ -838,6 +838,7 @@ const STOULT = (() => {
   function _openIDB() { return new Promise((res, rej) => { const req = indexedDB.open(IDB_DB, 1); req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE); req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e.target.error); }); }
   async function _saveHandle(h) { const db = await _openIDB(); await new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(h, IDB_KEY); tx.oncomplete = res; tx.onerror = rej; }); }
   async function loadHandle() { try { const db = await _openIDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const req = tx.objectStore(IDB_STORE).get(IDB_KEY); req.onsuccess = e => res(e.target.result || null); req.onerror = rej; }); } catch { return null; } }
+  async function clearHandle() { try { const db = await _openIDB(); await new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(IDB_KEY); tx.oncomplete = res; tx.onerror = rej; }); } catch {} }
 
   function parseFrontmatter(raw) {
     if (!raw) return { meta: {}, body: '' };
@@ -866,7 +867,7 @@ const STOULT = (() => {
   function slug(s) { return String(s).toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || 'item'; }
 
   let _storage = null;
-  return { initGoogle, signIn, signOut, getUser, getToken, DriveStorage, FSALStorage, loadHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
+  return { initGoogle, signIn, signOut, getUser, getToken, DriveStorage, FSALStorage, loadHandle, clearHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
 })();
 </script>
 </head>
@@ -1119,6 +1120,7 @@ function showApp(user) {
 
 async function signOut() {
   await STOULT.signOut();
+  await STOULT.clearHandle();
   storage = null;
   rooms   = [];
   appData = { routines: [], stock: [], shopping: [] };
