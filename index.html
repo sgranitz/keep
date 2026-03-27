@@ -658,14 +658,20 @@ const STOULT = (() => {
     if (!window.google?.accounts?.oauth2) return false;
     _tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/drive',
+      scope: 'https://www.googleapis.com/auth/drive email profile openid',
       callback: () => {},
     });
     const storedToken = localStorage.getItem(GTOKEN_KEY);
     const storedExp   = parseInt(localStorage.getItem(GTOKEN_EXP_KEY) || '0');
     const storedUser  = localStorage.getItem(GUSER_KEY);
     if (storedToken && storedExp > Date.now() + 60000 && storedUser) {
-      _token = storedToken; _tokenExp = storedExp; _user = JSON.parse(storedUser);
+      const parsedUser = JSON.parse(storedUser);
+      if (!parsedUser.email) {
+        // Token predates full scope — force re-auth
+        localStorage.removeItem(GTOKEN_KEY); localStorage.removeItem(GTOKEN_EXP_KEY); localStorage.removeItem(GUSER_KEY);
+        return false;
+      }
+      _token = storedToken; _tokenExp = storedExp; _user = parsedUser;
       return true;
     }
     return false;
@@ -764,6 +770,15 @@ const STOULT = (() => {
     },
 
     async writeFile(rel, content) {
+      // If we don't have a cached ID, look the file up first so we PATCH rather than create a duplicate
+      if (!this._ids[rel]) {
+        const parts = rel.split('/'); const name = parts.pop();
+        const parentId = await this._dir(parts.join('/'));
+        const q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false`;
+        const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`);
+        const id = r?.files?.[0]?.id;
+        if (id) this._ids[rel] = id;
+      }
       const token = await getToken();
       if (this._ids[rel]) {
         const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this._ids[rel]}?uploadType=media`, {
