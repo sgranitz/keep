@@ -510,6 +510,49 @@ body {
   margin-bottom: 14px;
 }
 
+.auth-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+@media (max-width: 480px) { .auth-options { grid-template-columns: 1fr; } }
+
+.auth-option {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-option:hover { border-color: var(--border2); }
+
+.auth-option-label {
+  font-family: 'Victor Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.auth-option-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cream);
+}
+.auth-option-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  flex: 1;
+  margin-bottom: 10px;
+}
+.auth-option .btn-primary {
+  font-size: 10px;
+  padding: 9px 12px;
+}
+
 .toast {
   position: fixed;
   bottom: 24px;
@@ -847,22 +890,35 @@ const STOULT = (() => {
   <div class="overview-stats" id="overviewStats"></div>
 </div>
 
-<div id="authGate" class="section" style="display:none; max-width:560px;">
+<div id="authGate" class="section" style="display:none; max-width:600px;">
   <div class="section-label">connect vault</div>
-  <div class="auth-copy">
-    Pick your vault folder on this device, or sign in with Google to access your Drive vault from any device.
+
+  <div id="setupOptions">
+    <div class="auth-options">
+      <div class="auth-option">
+        <div class="auth-option-label">this device only</div>
+        <div class="auth-option-title">Local folder</div>
+        <div class="auth-option-desc">Point directly to your vault folder on this computer. Fast, no account needed — desktop only.</div>
+        <button class="btn-primary" onclick="pickLocalVault()">pick folder</button>
+      </div>
+      <div class="auth-option" id="googleOption">
+        <div class="auth-option-label">any device</div>
+        <div class="auth-option-title">Google Drive</div>
+        <div class="auth-option-desc">Sign in with Google to access your Drive vault from desktop, mobile, or anywhere.</div>
+        <button class="btn-primary" onclick="signInGoogle()">sign in with google</button>
+      </div>
+    </div>
   </div>
-  <div id="setupOptions" style="display:flex; flex-direction:column; gap:10px;">
-    <button class="btn-primary" onclick="pickLocalVault()">pick local folder</button>
-    <button class="btn-inline" onclick="signInGoogle()">sign in with google</button>
-  </div>
+
   <div id="reconnectRow" style="display:none; margin-top:14px;">
     <div class="auth-copy">Your vault was previously connected. Tap to reconnect.</div>
     <button class="btn-primary" onclick="reconnectVault()">reconnect vault</button>
   </div>
-  <div id="vaultPathRow" style="display:none; margin-top:14px;">
+
+  <div id="vaultPathRow" style="display:none; margin-top:20px;">
+    <div class="auth-copy">Signed in. Enter the name of your vault folder in Google Drive.</div>
     <div class="field">
-      <label for="vaultPathInput">vault folder name in Google Drive</label>
+      <label for="vaultPathInput">vault folder name</label>
       <input class="input" id="vaultPathInput" placeholder="e.g. seg" value="seg">
     </div>
     <button class="btn-primary" onclick="confirmVaultPath()" style="margin-top:8px;">connect</button>
@@ -937,7 +993,7 @@ function showSetupGate() {
   document.getElementById('reconnectRow').style.display  = 'none';
   document.getElementById('vaultPathRow').style.display  = 'none';
   if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID') {
-    document.querySelector('[onclick="signInGoogle()"]').style.display = 'none';
+    document.getElementById('googleOption').style.display = 'none';
   }
 }
 
