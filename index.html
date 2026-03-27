@@ -602,67 +602,10 @@ body {
   display: block;
 }
 </style>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <script>
 const STOULT = (() => {
   'use strict';
-  const GRAPH = 'https://graph.microsoft.com/v1.0';
   const IDB_DB = 'stoult', IDB_STORE = 'handles', IDB_KEY = 'vault';
-  let _msal = null, _account = null, _token = null;
-
-  async function initMsal(clientId) {
-    if (!window.msal) return false;
-    _msal = new msal.PublicClientApplication({
-      auth: { clientId, authority: 'https://login.microsoftonline.com/consumers', redirectUri: window.location.origin + window.location.pathname },
-      cache: { cacheLocation: 'localStorage' },
-    });
-    await _msal.initialize();
-    const accounts = _msal.getAllAccounts();
-    if (accounts.length) {
-      _account = accounts[0];
-      try { const r = await _msal.acquireTokenSilent({ scopes: ['Files.ReadWrite','User.Read'], account: _account }); _token = r.accessToken; }
-      catch { _account = null; }
-    }
-    return !!_account;
-  }
-  async function signIn() {
-    const r = await _msal.loginPopup({ scopes: ['Files.ReadWrite','User.Read'] });
-    _account = r.account; _token = r.accessToken; return _account;
-  }
-  async function signOut() {
-    if (_msal && _account) { try { await _msal.logoutPopup({ account: _account }); } catch {} }
-    _account = null; _token = null;
-  }
-  function getUser() { return _account; }
-  async function getToken() {
-    if (!_account) return null;
-    try { const r = await _msal.acquireTokenSilent({ scopes: ['Files.ReadWrite','User.Read'], account: _account }); _token = r.accessToken; }
-    catch { const r = await _msal.acquireTokenPopup({ scopes: ['Files.ReadWrite','User.Read'] }); _token = r.accessToken; }
-    return _token;
-  }
-
-  async function gFetch(method, path, body, contentType) {
-    const token = await getToken();
-    const headers = { Authorization: `Bearer ${token}` };
-    if (contentType) headers['Content-Type'] = contentType;
-    const res = await fetch(`${GRAPH}${path}`, { method, headers, body: body !== undefined ? body : undefined });
-    if (res.status === 404 || res.status === 409) return null;
-    if (!res.ok) { const err = new Error(`Graph ${method} ${path} → ${res.status}`); err.status = res.status; throw err; }
-    if (res.status === 204) return null;
-    const ct = res.headers.get('content-type') || '';
-    return ct.includes('json') ? res.json() : res.text();
-  }
-
-  const GraphStorage = {
-    _root: '',
-    init(v) { this._root = v; },
-    _p(rel) { const full = rel ? `${this._root}/${rel}` : this._root; return `/me/drive/root:/${full.split('/').map(encodeURIComponent).join('/')}`; },
-    async readFile(rel)          { return gFetch('GET', `${this._p(rel)}:/content`); },
-    async writeFile(rel, c)      { await gFetch('PUT', `${this._p(rel)}:/content`, c, 'text/plain; charset=utf-8'); },
-    async listFiles(rel)         { const r = await gFetch('GET', `${this._p(rel)}:/children?$select=name,file,folder`); return r ? r.value : []; },
-    async ensureFolder(rel)      { const parts = rel.split('/'); let cur = ''; for (const p of parts) { await gFetch('POST', `${this._p(cur)}:/children`, JSON.stringify({ name: p, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }), 'application/json'); cur = cur ? `${cur}/${p}` : p; } },
-    async deleteFile(rel)        { await gFetch('DELETE', this._p(rel)); },
-  };
 
   const FSALStorage = {
     _root: null,
@@ -685,6 +628,7 @@ const STOULT = (() => {
   function _openIDB() { return new Promise((res, rej) => { const req = indexedDB.open(IDB_DB, 1); req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE); req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e.target.error); }); }
   async function _saveHandle(h) { const db = await _openIDB(); await new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(h, IDB_KEY); tx.oncomplete = res; tx.onerror = rej; }); }
   async function loadHandle() { try { const db = await _openIDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const req = tx.objectStore(IDB_STORE).get(IDB_KEY); req.onsuccess = e => res(e.target.result || null); req.onerror = rej; }); } catch { return null; } }
+  async function clearHandle() { try { const db = await _openIDB(); await new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(IDB_KEY); tx.oncomplete = res; tx.onerror = rej; }); } catch {} }
 
   function parseFrontmatter(raw) {
     if (!raw) return { meta: {}, body: '' };
@@ -713,7 +657,7 @@ const STOULT = (() => {
   function slug(s) { return String(s).toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || 'item'; }
 
   let _storage = null;
-  return { initMsal, signIn, signOut, getUser, getToken, GraphStorage, FSALStorage, loadHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
+  return { FSALStorage, loadHandle, clearHandle, getStorage() { return _storage; }, setStorage(s) { _storage = s; }, parseFrontmatter, buildMarkdown, slug };
 })();
 </script>
 </head>
@@ -759,22 +703,14 @@ const STOULT = (() => {
 <div id="authGate" class="section" style="display:none; max-width:560px;">
   <div class="section-label">connect vault</div>
   <div class="auth-copy">
-    Pick your vault folder on this device, or sign in with Microsoft to access your OneDrive vault from any device including mobile.
+    Pick your local Obsidian vault folder on this desktop browser. The Keep will read and write directly to that folder.
   </div>
   <div id="setupOptions" style="display:flex; flex-direction:column; gap:10px;">
-    <button class="btn-primary" onclick="pickLocalVault()">pick local folder</button>
-    <button class="btn-inline" onclick="signInMicrosoft()">sign in with microsoft</button>
+    <button class="btn-primary" onclick="pickLocalVault()">pick local vault folder</button>
   </div>
   <div id="reconnectRow" style="display:none; margin-top:14px;">
-    <div class="auth-copy">Your vault was previously connected. Tap to reconnect.</div>
+    <div class="auth-copy">Your vault was previously connected. Reconnect it to continue.</div>
     <button class="btn-primary" onclick="reconnectVault()">reconnect vault</button>
-  </div>
-  <div id="vaultPathRow" style="display:none; margin-top:14px;">
-    <div class="field">
-      <label for="vaultPathInput">vault folder name in OneDrive</label>
-      <input class="input" id="vaultPathInput" placeholder="e.g. seg">
-    </div>
-    <button class="btn-primary" onclick="confirmVaultPath()" style="margin-top:8px;">connect</button>
   </div>
 </div>
 
@@ -806,10 +742,7 @@ const STOULT = (() => {
 // 3. Add redirect URI: Web → https://stoult.com/keep/ (and other tool URLs)
 // 4. Under API permissions → Add → Microsoft Graph → Files.ReadWrite + User.Read
 // 5. Paste your Application (client) ID below:
-const CLIENT_ID = 'YOUR_AZURE_CLIENT_ID';
-
 const KEEP_BASE      = 'References/Keep';
-const VAULT_PATH_KEY = 'stoult_vault_path';
 
 let storage    = null;
 let rooms      = [];
@@ -823,18 +756,13 @@ async function init() {
     b.addEventListener('click', () => switchPanel(b.dataset.panel));
   });
 
-  // 1. Try restoring FSAL handle (desktop)
   const handle = await STOULT.loadHandle();
   if (handle) {
-    const perm = await handle.queryPermission({ mode: 'readwrite' });
-    if (perm === 'granted') { return initWithFSAL(handle); }
-    if (perm === 'prompt')  { return showReconnectGate(handle); }
-  }
-
-  // 2. Try MSAL (any device, requires CLIENT_ID)
-  if (CLIENT_ID !== 'YOUR_AZURE_CLIENT_ID') {
-    const hasSession = await STOULT.initMsal(CLIENT_ID);
-    if (hasSession) { return initWithGraph(); }
+    try {
+      const perm = await handle.queryPermission({ mode: 'readwrite' });
+      if (perm === 'granted') { return initWithFSAL(handle); }
+      if (perm === 'prompt')  { return showReconnectGate(handle); }
+    } catch {}
   }
 
   showSetupGate();
@@ -844,11 +772,6 @@ function showSetupGate() {
   document.getElementById('authGate').style.display      = '';
   document.getElementById('setupOptions').style.display  = '';
   document.getElementById('reconnectRow').style.display  = 'none';
-  document.getElementById('vaultPathRow').style.display  = 'none';
-  // Hide MS sign-in button if no CLIENT_ID configured
-  if (CLIENT_ID === 'YOUR_AZURE_CLIENT_ID') {
-    document.querySelector('[onclick="signInMicrosoft()"]').style.display = 'none';
-  }
 }
 
 function showReconnectGate(handle) {
@@ -856,7 +779,6 @@ function showReconnectGate(handle) {
   document.getElementById('authGate').style.display      = '';
   document.getElementById('setupOptions').style.display  = 'none';
   document.getElementById('reconnectRow').style.display  = '';
-  document.getElementById('vaultPathRow').style.display  = 'none';
 }
 
 async function pickLocalVault() {
@@ -874,7 +796,15 @@ async function pickLocalVault() {
 
 async function reconnectVault() {
   const handle = window._pendingHandle;
-  await handle.requestPermission({ mode: 'readwrite' });
+  if (!handle) {
+    showToast('No saved vault to reconnect', 'error');
+    return;
+  }
+  const perm = await handle.requestPermission({ mode: 'readwrite' });
+  if (perm !== 'granted') {
+    showToast('Vault permission not granted', 'error');
+    return;
+  }
   await initWithFSAL(handle);
 }
 
@@ -882,71 +812,30 @@ async function initWithFSAL(handle) {
   await STOULT.FSALStorage.init(handle);
   storage = STOULT.FSALStorage;
   STOULT.setStorage(storage);
-  showApp({ displayName: handle.name });
+  showApp(handle.name || 'vault');
   await loadAll();
 }
 
-async function signInMicrosoft() {
-  try {
-    if (CLIENT_ID === 'YOUR_AZURE_CLIENT_ID') {
-      showToast('Microsoft CLIENT_ID not configured', 'error');
-      return;
-    }
-    await STOULT.initMsal(CLIENT_ID);
-    await STOULT.signIn();
-    await initWithGraph();
-  } catch (e) {
-    showToast('Sign-in failed', 'error');
-    console.error(e);
-  }
-}
-
-async function initWithGraph() {
-  const user = STOULT.getUser();
-  if (!user) { showSetupGate(); return; }
-
-  const vaultPath = localStorage.getItem(VAULT_PATH_KEY);
-  if (!vaultPath) {
-    document.getElementById('authGate').style.display     = '';
-    document.getElementById('setupOptions').style.display = 'none';
-    document.getElementById('reconnectRow').style.display = 'none';
-    document.getElementById('vaultPathRow').style.display = '';
-    return;
-  }
-
-  STOULT.GraphStorage.init(vaultPath);
-  storage = STOULT.GraphStorage;
-  STOULT.setStorage(storage);
-  showApp(user);
-  await loadAll();
-}
-
-async function confirmVaultPath() {
-  const path = document.getElementById('vaultPathInput').value.trim();
-  if (!path) return;
-  localStorage.setItem(VAULT_PATH_KEY, path);
-  await initWithGraph();
-}
-
-function showApp(user) {
-  document.getElementById('authGate').style.display  = 'none';
-  document.getElementById('appShell').style.display  = '';
+function showApp(vaultName) {
+  document.getElementById('authGate').style.display   = 'none';
+  document.getElementById('appShell').style.display   = '';
   document.getElementById('signOutBtn').style.display = '';
-  document.getElementById('statusLabel').textContent = 'connected';
-  document.getElementById('userEmail').textContent   =
-    user.username || user.displayName || user.name || 'vault';
+  document.getElementById('signOutBtn').textContent   = 'disconnect';
+  document.getElementById('statusLabel').textContent  = 'connected';
+  document.getElementById('userEmail').textContent    = vaultName || 'vault';
 }
 
 async function signOut() {
-  await STOULT.signOut();
+  await STOULT.clearHandle();
   storage = null;
   rooms   = [];
   appData = { routines: [], stock: [], shopping: [] };
+  window._pendingHandle = null;
   document.getElementById('authGate').style.display   = 'none';
   document.getElementById('appShell').style.display   = 'none';
   document.getElementById('signOutBtn').style.display = 'none';
   document.getElementById('statusLabel').textContent  = 'private household';
-  document.getElementById('userEmail').textContent    = 'signed out';
+  document.getElementById('userEmail').textContent    = 'disconnected';
   showSetupGate();
 }
 
@@ -1748,7 +1637,7 @@ function renderShopping() {
 
 // ── EXPOSE GLOBALS ───────────────────────────────────────────────────────────
 Object.assign(window, {
-  pickLocalVault, signInMicrosoft, reconnectVault, confirmVaultPath, signOut,
+  pickLocalVault, reconnectVault, signOut,
   switchPanel, setRoomFilter,
   switchSchedType,
   addRoutine, completeRoutine, deleteRoutine,
