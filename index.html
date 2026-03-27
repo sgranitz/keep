@@ -722,81 +722,83 @@ const STOULT = (() => {
 
   const DriveStorage = {
     _rootId: null,
-    _cache: {},
-    init(rootFolderId) { this._rootId = rootFolderId; this._cache = {}; },
-    async _findChild(parentId, name, isFolder) {
-      const mime = isFolder ? "mimeType='application/vnd.google-apps.folder'" : "mimeType!='application/vnd.google-apps.folder'";
-      const q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false and ${mime}`;
-      const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id)`);
-      return r?.files?.[0]?.id || null;
-    },
-    async _folder(rel, create = false) {
-      if (!rel) return this._rootId;
-      const parts = rel.split('/').filter(Boolean);
-      let cur = this._rootId;
+    _ids: {},  // 'relative/path' → Drive ID (files and folders)
+
+    init(rootFolderId) { this._rootId = rootFolderId; this._ids = {}; },
+
+    // Traverse/create folder path, return its Drive ID
+    async _dir(folderPath) {
+      if (!folderPath) return this._rootId;
+      if (this._ids[folderPath]) return this._ids[folderPath];
+      const parts = folderPath.split('/').filter(Boolean);
+      let parentId = this._rootId, cur = '';
       for (const name of parts) {
-        const key = `d:${cur}:${name}`;
-        if (this._cache[key]) { cur = this._cache[key]; continue; }
-        let id = await this._findChild(cur, name, true);
+        cur = cur ? `${cur}/${name}` : name;
+        if (this._ids[cur]) { parentId = this._ids[cur]; continue; }
+        const q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+        const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`);
+        let id = r?.files?.[0]?.id;
         if (!id) {
-          if (!create) return null;
-          const r = await dFetch('POST', '/files?fields=id', JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [cur] }), 'application/json');
-          id = r?.id;
+          const cr = await dFetch('POST', '/files?fields=id', JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }), 'application/json');
+          id = cr?.id;
         }
-        if (!id) return null;
-        this._cache[key] = id; cur = id;
+        if (!id) throw new Error(`Cannot find or create folder: ${cur}`);
+        this._ids[cur] = id; parentId = id;
       }
-      return cur;
+      return parentId;
     },
+
     async readFile(rel) {
-      const parts = rel.split('/'); const name = parts.pop();
-      const parentId = await this._folder(parts.join('/'), false);
-      if (!parentId) return null;
-      const key = `f:${parentId}:${name}`;
-      const id = this._cache[key] || await this._findChild(parentId, name, false);
-      if (!id) return null;
-      if (!this._cache[key]) this._cache[key] = id;
+      if (!this._ids[rel]) {
+        const parts = rel.split('/'); const name = parts.pop();
+        const parentId = await this._dir(parts.join('/'));
+        const q = `name='${name.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false`;
+        const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`);
+        const id = r?.files?.[0]?.id;
+        if (!id) return null;
+        this._ids[rel] = id;
+      }
       const token = await getToken();
-      const res = await fetch(`${DRIVE}/files/${id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${DRIVE}/files/${this._ids[rel]}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
       return res.ok ? res.text() : null;
     },
+
     async writeFile(rel, content) {
-      const parts = rel.split('/'); const name = parts.pop();
-      const parentId = await this._folder(parts.join('/'), true);
-      const key = `f:${parentId}:${name}`;
-      let fileId = this._cache[key] || await this._findChild(parentId, name, false);
-      if (fileId && !this._cache[key]) this._cache[key] = fileId;
       const token = await getToken();
-      if (fileId) {
-        const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      if (this._ids[rel]) {
+        const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this._ids[rel]}?uploadType=media`, {
           method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain; charset=utf-8' }, body: content,
         });
         if (!r.ok) throw new Error(`Drive PATCH ${rel} → ${r.status}: ${await r.text()}`);
       } else {
+        const parts = rel.split('/'); const name = parts.pop();
+        const parentId = await this._dir(parts.join('/'));
         const meta = JSON.stringify({ name, parents: [parentId], mimeType: 'text/plain' });
         const body = `--stoult_b\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--stoult_b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${content}\r\n--stoult_b--`;
         const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
           method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/related; boundary=stoult_b' }, body,
         });
         if (!r.ok) throw new Error(`Drive POST ${rel} → ${r.status}: ${await r.text()}`);
-        const j = await r.json(); this._cache[key] = j.id;
+        this._ids[rel] = (await r.json()).id;
       }
     },
+
     async listFiles(rel) {
-      const folderId = await this._folder(rel, false);
-      if (!folderId) return [];
+      const folderId = await this._dir(rel);
       const q = `'${folderId}' in parents and trashed=false`;
       const r = await dFetch('GET', `/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&pageSize=1000`);
-      return (r?.files || []).map(f => ({ name: f.name, file: f.mimeType !== 'application/vnd.google-apps.folder' ? true : undefined }));
+      const files = r?.files || [];
+      for (const f of files) this._ids[`${rel}/${f.name}`] = f.id;
+      return files.map(f => ({ name: f.name, file: f.mimeType !== 'application/vnd.google-apps.folder' ? true : undefined }));
     },
-    async ensureFolder(rel) { await this._folder(rel, true); },
+
+    async ensureFolder(rel) { await this._dir(rel); },
+
     async deleteFile(rel) {
-      const parts = rel.split('/'); const name = parts.pop();
-      const parentId = await this._folder(parts.join('/'), false);
-      if (!parentId) return;
-      const key = `f:${parentId}:${name}`;
-      const id = this._cache[key] || await this._findChild(parentId, name, false);
-      if (id) { await dFetch('DELETE', `/files/${id}`); delete this._cache[key]; }
+      if (!this._ids[rel]) await this.readFile(rel);
+      if (!this._ids[rel]) return;
+      await dFetch('DELETE', `/files/${this._ids[rel]}`);
+      delete this._ids[rel];
     },
   };
 
