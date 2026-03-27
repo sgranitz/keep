@@ -939,7 +939,7 @@ const STOULT = (() => {
     <div class="auth-copy">Signed in. Enter the name of your vault folder in Google Drive.</div>
     <div class="field">
       <label for="vaultPathInput">vault folder name</label>
-      <input class="input" id="vaultPathInput" placeholder="e.g. seg" value="seg">
+      <input class="input" id="vaultPathInput" placeholder="e.g. MyVault">
     </div>
     <button class="btn-primary" onclick="confirmVaultPath()" style="margin-top:8px;">connect</button>
   </div>
@@ -1152,8 +1152,10 @@ async function loadAll() {
 
 async function ensureKeepFolders() {
   await storage.ensureFolder(KEEP_BASE);
-  await storage.ensureFolder(`${KEEP_BASE}/Routines`);
-  await storage.ensureFolder(`${KEEP_BASE}/Stock`);
+  await Promise.all([
+    storage.ensureFolder(`${KEEP_BASE}/Routines`),
+    storage.ensureFolder(`${KEEP_BASE}/Stock`),
+  ]);
 }
 
 // ── FILE FORMATS ────────────────────────────────────────────────────────────
@@ -1180,19 +1182,17 @@ function legacySchedule(meta) {
 }
 
 async function loadRoutines() {
-  const files = await storage.listFiles(`${KEEP_BASE}/Routines`);
-  const out   = [];
-  for (const f of files) {
-    if (!f.name?.endsWith('.md')) continue;
-    const raw = await storage.readFile(`${KEEP_BASE}/Routines/${f.name}`);
-    if (!raw) continue;
+  const files = (await storage.listFiles(`${KEEP_BASE}/Routines`)).filter(f => f.name?.endsWith('.md'));
+  const raws  = await Promise.all(files.map(f => storage.readFile(`${KEEP_BASE}/Routines/${f.name}`)));
+  return files.map((f, i) => {
+    const raw = raws[i]; if (!raw) return null;
     const { meta } = STOULT.parseFrontmatter(raw);
     const sched = meta.schedule
       ? { schedule: meta.schedule, interval: parseInt(meta.interval) || 1,
           days: Array.isArray(meta.days) ? meta.days.map(Number) : [],
           day: parseInt(meta.day) || 1, month: parseInt(meta.month) || 1 }
       : { days: [], day: 1, month: 1, interval: 7, ...legacySchedule(meta) };
-    out.push({
+    return {
       _file:          f.name,
       title:          meta.title          || f.name.replace('.md', ''),
       room:           meta.room           || '',
@@ -1200,9 +1200,8 @@ async function loadRoutines() {
       notes:          meta.notes          || '',
       created:        meta.created        || todayISO(),
       ...sched,
-    });
-  }
-  return out;
+    };
+  }).filter(Boolean);
 }
 
 async function writeRoutine(r) {
@@ -1219,22 +1218,19 @@ async function writeRoutine(r) {
 }
 
 async function loadStock() {
-  const files = await storage.listFiles(`${KEEP_BASE}/Stock`);
-  const out   = [];
-  for (const f of files) {
-    if (!f.name?.endsWith('.md')) continue;
-    const raw = await storage.readFile(`${KEEP_BASE}/Stock/${f.name}`);
-    if (!raw) continue;
+  const files = (await storage.listFiles(`${KEEP_BASE}/Stock`)).filter(f => f.name?.endsWith('.md'));
+  const raws  = await Promise.all(files.map(f => storage.readFile(`${KEEP_BASE}/Stock/${f.name}`)));
+  return files.map((f, i) => {
+    const raw = raws[i]; if (!raw) return null;
     const { meta } = STOULT.parseFrontmatter(raw);
-    out.push({
+    return {
       _file:    f.name,
       title:    meta.title || f.name.replace('.md', ''),
       room:     meta.room  || '',
       quantity: parseInt(meta.quantity) || 0,
       created:  meta.created || todayISO(),
-    });
-  }
-  return out;
+    };
+  }).filter(Boolean);
 }
 
 async function writeStockItem(item) {
