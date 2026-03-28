@@ -1227,8 +1227,9 @@ async function loadStock() {
       _file:    f.name,
       title:    meta.title || f.name.replace('.md', ''),
       room:     meta.room  || '',
-      quantity: parseInt(meta.quantity) || 0,
-      created:  meta.created || todayISO(),
+      quantity:   parseInt(meta.quantity) || 0,
+      restock_at: meta.restock_at != null ? parseInt(meta.restock_at) : null,
+      created:    meta.created || todayISO(),
     };
   }).filter(Boolean);
 }
@@ -1237,6 +1238,7 @@ async function writeStockItem(item) {
   await storage.writeFile(`${KEEP_BASE}/Stock/${item._file}`,
     STOULT.buildMarkdown({
       title: item.title, room: item.room, quantity: item.quantity,
+      ...(item.restock_at != null ? { restock_at: item.restock_at } : {}),
       tags: ['keep', 'stock'], created: item.created || todayISO(),
     })
   );
