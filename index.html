@@ -1498,9 +1498,12 @@ async function deleteRoom(name) {
 }
 
 // ── UTILITIES ────────────────────────────────────────────────────────────────
-function todayISO() {
-  const d = new Date();
+function localISO(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function todayISO() {
+  return localISO(new Date());
 }
 
 function diffDays(from, to) {
@@ -1513,7 +1516,7 @@ function diffDays(from, to) {
 function addDays(iso, n) {
   const d = new Date(iso + 'T00:00:00');
   d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return localISO(d);
 }
 
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1592,7 +1595,7 @@ function computeRoutineStatus(r) {
       const now = new Date(todayMs);
       const y = now.getFullYear(), m = now.getMonth();
       const thisTarget = new Date(y, m, d);
-      const thisTargetISO = thisTarget.toISOString().slice(0, 10);
+      const thisTargetISO = localISO(thisTarget);
       if (today < thisTargetISO) {
         daysUntilDue = Math.round((thisTarget.getTime() - todayMs) / 86400000);
       } else if (today === thisTargetISO) {
@@ -1610,7 +1613,7 @@ function computeRoutineStatus(r) {
       const mo = (r.month || 1) - 1, d = r.day || 1;
       const y = new Date(todayMs).getFullYear();
       const thisTarget = new Date(y, mo, d);
-      const thisTargetISO = thisTarget.toISOString().slice(0, 10);
+      const thisTargetISO = localISO(thisTarget);
       if (today < thisTargetISO) {
         daysUntilDue = Math.round((thisTarget.getTime() - todayMs) / 86400000);
       } else if (today === thisTargetISO) {
