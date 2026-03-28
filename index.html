@@ -1403,21 +1403,8 @@ async function adjustStock(fileName, delta) {
   const item = appData.stock.find(x => x._file === fileName);
   if (!item) return;
   item.quantity = Math.max(0, item.quantity + delta);
-
-  // Update DOM instantly
-  const row = document.querySelector(`.stock-row[data-stock-file="${fileName}"]`);
-  if (row) {
-    row.querySelector('.stock-qty-val').textContent  = item.quantity;
-    row.querySelector('.stock-qty-label').textContent = item.quantity;
-    const threshold = item.restock_at != null ? item.restock_at : null;
-    const low = threshold != null && item.quantity <= threshold;
-    const empty = item.quantity === 0;
-    const badge = row.querySelector('.stock-badge');
-    badge.className = `badge stock-badge ${empty ? 'low' : low ? 'due' : 'ok'}`;
-    badge.textContent = empty ? 'out of stock' : low ? 'low stock' : 'stocked';
-  }
-
   checkAndAutoRestock(item);
+  renderAll();
   writeStockItem(item);
 }
 
