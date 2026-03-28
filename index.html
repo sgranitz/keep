@@ -1379,15 +1379,17 @@ async function deleteRoutine(fileName) {
 
 // ── CRUD: STOCK ─────────────────────────────────────────────────────────────
 async function addStockItem() {
-  const title = document.getElementById('newStockName').value.trim();
-  const room  = document.getElementById('newStockRoom').value;
-  const qty   = parseInt(document.getElementById('newStockQty').value) || 0;
+  const title     = document.getElementById('newStockName').value.trim();
+  const room      = document.getElementById('newStockRoom').value;
+  const qty       = parseInt(document.getElementById('newStockQty').value) || 0;
+  const restockAt = parseInt(document.getElementById('newStockRestock').value);
   if (!title) return;
 
   const fileName = await uniqueFileName('Stock', title);
-  const item     = { _file: fileName, title, room, quantity: qty, created: todayISO() };
+  const item     = { _file: fileName, title, room, quantity: qty, restock_at: isNaN(restockAt) ? null : restockAt, created: todayISO() };
   await writeStockItem(item);
   appData.stock.push(item);
+  checkAndAutoRestock(item);
   document.getElementById('newStockName').value = '';
   renderAll();
   showToast('item added');
@@ -1398,7 +1400,27 @@ async function adjustStock(fileName, delta) {
   if (!item) return;
   item.quantity = Math.max(0, item.quantity + delta);
   await writeStockItem(item);
+  checkAndAutoRestock(item);
   renderAll();
+}
+
+async function setRestockAt(fileName, val) {
+  const item = appData.stock.find(x => x._file === fileName);
+  if (!item) return;
+  item.restock_at = val === '' ? null : parseInt(val);
+  await writeStockItem(item);
+  checkAndAutoRestock(item);
+  renderAll();
+}
+
+function checkAndAutoRestock(item) {
+  if (item.restock_at == null) return;
+  if (item.quantity > item.restock_at) return;
+  const alreadyActive = appData.shopping.some(s => !s.checked && s.name.toLowerCase() === item.title.toLowerCase());
+  if (alreadyActive) return;
+  appData.shopping.push({ name: item.title, checked: false, source: 'stock' });
+  writeShopping(appData.shopping);
+  showToast(`${item.title} added to shopping`);
 }
 
 async function deleteStockItem(fileName) {
@@ -1857,7 +1879,12 @@ function renderRoutineManageRow(r) {
 }
 
 function renderStockManageRow(s) {
+  const threshold = s.restock_at != null ? s.restock_at : null;
+  const low  = threshold != null && s.quantity <= threshold;
   const empty = s.quantity === 0;
+  const badgeClass = empty ? 'low' : low ? 'due' : 'ok';
+  const badgeLabel = empty ? 'out of stock' : low ? 'low stock' : 'stocked';
+  const restockVal = threshold != null ? threshold : '';
   return `
     <div class="stock-row">
       <div class="stock-head">
@@ -1865,7 +1892,7 @@ function renderStockManageRow(s) {
           <div class="stock-title">${esc(s.title)}</div>
           <div class="stock-sub">${esc(s.room)} · in stock ${s.quantity}</div>
         </div>
-        <div class="badge ${empty ? 'low' : 'ok'}">${empty ? 'out of stock' : 'stocked'}</div>
+        <div class="badge ${badgeClass}">${badgeLabel}</div>
       </div>
       <div class="stock-controls">
         <div class="stock-qty">
@@ -1874,6 +1901,12 @@ function renderStockManageRow(s) {
           <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',1)">+</button>
         </div>
         <div class="stock-actions">
+          <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;letter-spacing:.06em;">
+            restock at
+            <input type="number" min="0" class="input" style="width:52px;padding:3px 6px;font-size:12px;"
+              value="${restockVal}" placeholder="—"
+              onchange="setRestockAt('${esc(s._file)}',this.value)">
+          </label>
           <button class="btn-inline" onclick="addStockToShopping('${esc(s._file)}')">+ list</button>
           <button class="btn-inline danger" onclick="deleteStockItem('${esc(s._file)}')">delete</button>
         </div>
@@ -1898,6 +1931,7 @@ function renderStock() {
         <div class="field"><label>name</label><input class="input" id="newStockName" placeholder="e.g. Olive Oil"></div>
         <div class="field"><label>room</label><select class="input" id="newStockRoom"><option value="">no room</option>${roomOpts}</select></div>
         <div class="field"><label>quantity</label><input class="input" id="newStockQty" type="number" value="1" min="0"></div>
+        <div class="field"><label>restock when at or below</label><input class="input" id="newStockRestock" type="number" min="0" placeholder="optional"></div>
       </div>
       <button class="btn-primary" onclick="addStockItem()">add to stock</button>
     </div>`;
@@ -1931,7 +1965,7 @@ Object.assign(window, {
   switchPanel, setRoomFilter,
   switchSchedType,
   addRoutine, completeRoutine, deleteRoutine,
-  addStockItem, adjustStock, deleteStockItem, addStockToShopping,
+  addStockItem, adjustStock, deleteStockItem, addStockToShopping, setRestockAt,
   addShoppingItem, toggleShopping, deleteShoppingItem, clearDoneShopping,
   addRoom, deleteRoom,
 });
