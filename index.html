@@ -1401,7 +1401,20 @@ async function adjustStock(fileName, delta) {
   const item = appData.stock.find(x => x._file === fileName);
   if (!item) return;
   item.quantity = Math.max(0, item.quantity + delta);
-  renderAll();
+
+  // Update DOM instantly
+  const row = document.querySelector(`.stock-row[data-stock-file="${fileName}"]`);
+  if (row) {
+    row.querySelector('.stock-qty-val').textContent  = item.quantity;
+    row.querySelector('.stock-qty-label').textContent = item.quantity;
+    const threshold = item.restock_at != null ? item.restock_at : null;
+    const low = threshold != null && item.quantity <= threshold;
+    const empty = item.quantity === 0;
+    const badge = row.querySelector('.stock-badge');
+    badge.className = `badge stock-badge ${empty ? 'low' : low ? 'due' : 'ok'}`;
+    badge.textContent = empty ? 'out of stock' : low ? 'low stock' : 'stocked';
+  }
+
   checkAndAutoRestock(item);
   writeStockItem(item);
 }
@@ -1891,18 +1904,18 @@ function renderStockManageRow(s) {
   const badgeLabel = empty ? 'out of stock' : low ? 'low stock' : 'stocked';
   const restockVal = threshold != null ? threshold : '';
   return `
-    <div class="stock-row">
+    <div class="stock-row" data-stock-file="${esc(s._file)}">
       <div class="stock-head">
         <div>
           <div class="stock-title">${esc(s.title)}</div>
-          <div class="stock-sub">${esc(s.room)} · in stock ${s.quantity}</div>
+          <div class="stock-sub">${esc(s.room)} · in stock <span class="stock-qty-label">${s.quantity}</span></div>
         </div>
-        <div class="badge ${badgeClass}">${badgeLabel}</div>
+        <div class="badge ${badgeClass} stock-badge">${badgeLabel}</div>
       </div>
       <div class="stock-controls">
         <div class="stock-qty">
           <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',-1)">−</button>
-          <div class="qty-value">${s.quantity}</div>
+          <div class="qty-value stock-qty-val">${s.quantity}</div>
           <button class="btn-inline" onclick="adjustStock('${esc(s._file)}',1)">+</button>
         </div>
         <div class="stock-actions">
