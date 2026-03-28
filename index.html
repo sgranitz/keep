@@ -1401,9 +1401,9 @@ async function adjustStock(fileName, delta) {
   const item = appData.stock.find(x => x._file === fileName);
   if (!item) return;
   item.quantity = Math.max(0, item.quantity + delta);
-  await writeStockItem(item);
-  checkAndAutoRestock(item);
   renderAll();
+  checkAndAutoRestock(item);
+  writeStockItem(item);
 }
 
 async function setRestockAt(fileName, val) {
