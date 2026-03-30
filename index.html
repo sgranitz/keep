@@ -1746,7 +1746,7 @@ function roomFilterRow(panel, items) {
   const used = new Set(items.map(x => x.room).filter(Boolean));
   const opts = ['All', ...rooms.filter(r => used.has(r))];
   return `<div class="filter-row">${opts.map(r =>
-    `<button class="filter-btn${filters[panel] === r ? ' active' : ''}" onclick="setRoomFilter(${jsq(panel)},${jsq(r)})">${esc(r)}</button>`
+    `<button class="filter-btn${filters[panel] === r ? ' active' : ''}" onclick='setRoomFilter(${jsq(panel)},${jsq(r)})'>${esc(r)}</button>`
   ).join('')}</div>`;
 }
 
@@ -1780,7 +1780,7 @@ function routineRowHtml(r) {
       <div class="task-head">
         <div>
           <div class="task-check">
-            <input class="checkbox" type="checkbox" onchange="completeRoutine(${jsq(r._file)})">
+            <input class="checkbox" type="checkbox" onchange='completeRoutine(${jsq(r._file)})'>
             <div class="task-title">${esc(r.title)}</div>
           </div>
           <div class="task-sub">${esc(r.room)} · ${frequencyLabel(r)}</div>
@@ -1801,7 +1801,7 @@ function renderStockCardCompact(s) {
         <div class="badge low">out of stock</div>
       </div>
       <div class="row-actions">
-        <button class="btn-inline" onclick="addStockToShopping(${jsq(s._file)})">+ shopping list</button>
+        <button class="btn-inline" onclick='addStockToShopping(${jsq(s._file)})'>+ shopping list</button>
       </div>
     </div>`;
 }
@@ -1911,7 +1911,7 @@ function renderRoutines() {
     <div class="section">
       <div class="section-label">rooms</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        ${rooms.map(r => `<span class="badge badge-muted" style="cursor:pointer" onclick="deleteRoom(${jsq(r)})">${esc(r)} ×</span>`).join('')}
+        ${rooms.map(r => `<span class="badge badge-muted" style="cursor:pointer" onclick='deleteRoom(${jsq(r)})'>${esc(r)} ×</span>`).join('')}
         ${!rooms.length ? '<span style="color:var(--faint);font-size:11px;">no rooms defined</span>' : ''}
       </div>
       <div style="display:flex;gap:8px;">
@@ -1940,8 +1940,8 @@ function renderRoutineManageRow(r) {
         <div class="badge ${badgeClass}">${badgeText}</div>
       </div>
       <div class="row-actions">
-        <button class="btn-inline" onclick="completeRoutine(${jsq(r._file)})">complete</button>
-        <button class="btn-inline danger" onclick="deleteRoutine(${jsq(r._file)})">delete</button>
+        <button class="btn-inline" onclick='completeRoutine(${jsq(r._file)})'>complete</button>
+        <button class="btn-inline danger" onclick='deleteRoutine(${jsq(r._file)})'>delete</button>
       </div>
     </div>`;
 }
@@ -1964,19 +1964,19 @@ function renderStockManageRow(s) {
       </div>
       <div class="stock-controls">
         <div class="stock-qty">
-          <button class="btn-inline" onclick="adjustStock(${jsq(s._file)},-1)">−</button>
+          <button class="btn-inline" onclick='adjustStock(${jsq(s._file)},-1)'>−</button>
           <div class="qty-value stock-qty-val">${s.quantity}</div>
-          <button class="btn-inline" onclick="adjustStock(${jsq(s._file)},1)">+</button>
+          <button class="btn-inline" onclick='adjustStock(${jsq(s._file)},1)'>+</button>
         </div>
         <div class="stock-actions">
           <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;letter-spacing:.06em;">
             restock at
             <input type="number" min="0" class="input" style="width:52px;padding:3px 6px;font-size:12px;"
               value="${restockVal}" placeholder="—"
-              onchange="setRestockAt(${jsq(s._file)},this.value)">
+              onchange='setRestockAt(${jsq(s._file)},this.value)'>
           </label>
-          <button class="btn-inline" onclick="addStockToShopping(${jsq(s._file)})">+ list</button>
-          <button class="btn-inline danger" onclick="deleteStockItem(${jsq(s._file)})">delete</button>
+          <button class="btn-inline" onclick='addStockToShopping(${jsq(s._file)})'>+ list</button>
+          <button class="btn-inline danger" onclick='deleteStockItem(${jsq(s._file)})'>delete</button>
         </div>
       </div>
     </div>`;
