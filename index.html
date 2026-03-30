@@ -652,7 +652,7 @@ const STOULT = (() => {
   const DRIVE = 'https://www.googleapis.com/drive/v3';
   const IDB_DB = 'stoult', IDB_STORE = 'handles', IDB_KEY = 'vault';
   const GTOKEN_KEY = 'stoult_gtoken', GTOKEN_EXP_KEY = 'stoult_gtoken_exp', GUSER_KEY = 'stoult_guser';
-  let _tokenClient = null, _token = null, _tokenExp = 0, _user = null;
+  let _tokenClient = null, _token = null, _tokenExp = 0, _user = null, _tokenRefreshPromise = null;
 
   async function initGoogle(clientId) {
     if (!window.google?.accounts?.oauth2) return false;
@@ -724,8 +724,10 @@ const STOULT = (() => {
   function getUser() { return _user; }
   async function getToken() {
     if (_token && _tokenExp > Date.now() + 60000) return _token;
-    return new Promise((resolve, reject) => {
-      _tokenClient.callback = async (resp) => {
+    if (_tokenRefreshPromise) return _tokenRefreshPromise;
+    _tokenRefreshPromise = new Promise((resolve, reject) => {
+      _tokenClient.callback = (resp) => {
+        _tokenRefreshPromise = null;
         if (resp.error) { reject(new Error(resp.error)); return; }
         _token = resp.access_token;
         _tokenExp = Date.now() + (resp.expires_in || 3600) * 1000;
@@ -734,6 +736,7 @@ const STOULT = (() => {
       };
       _tokenClient.requestAccessToken({ prompt: '' });
     });
+    return _tokenRefreshPromise;
   }
 
   async function dFetch(method, path, body, contentType) {
