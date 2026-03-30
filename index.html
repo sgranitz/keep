@@ -667,7 +667,6 @@ const STOULT = (() => {
     if (storedToken && storedExp > Date.now() + 60000 && storedUser) {
       const parsedUser = JSON.parse(storedUser);
       if (!parsedUser.email) {
-        // Token predates full scope — force re-auth
         localStorage.removeItem(GTOKEN_KEY); localStorage.removeItem(GTOKEN_EXP_KEY); localStorage.removeItem(GUSER_KEY);
         return false;
       }
@@ -726,18 +725,26 @@ const STOULT = (() => {
     return ct.includes('json') ? res.json() : res.text();
   }
 
+  const FCACHE_KEY = 'stoult_fcache';
+  function _loadFolderCache(rootId) {
+    try { const c = JSON.parse(sessionStorage.getItem(FCACHE_KEY)||'{}'); return c.root===rootId ? c.ids||{} : {}; } catch { return {}; }
+  }
+  function _saveFolderCache(rootId, ids) {
+    const fi = {}; for (const [k,v] of Object.entries(ids)) { if (!k.split('/').pop().includes('.')) fi[k]=v; }
+    try { sessionStorage.setItem(FCACHE_KEY, JSON.stringify({root:rootId,ids:fi})); } catch {}
+  }
   const DriveStorage = {
     _rootId: null,
     _ids: {},  // 'relative/path' → Drive ID (files and folders)
 
-    init(rootFolderId) { this._rootId = rootFolderId; this._ids = {}; },
+    init(rootFolderId) { this._rootId = rootFolderId; this._ids = _loadFolderCache(rootFolderId); },
 
     // Traverse/create folder path, return its Drive ID
     async _dir(folderPath) {
       if (!folderPath) return this._rootId;
       if (this._ids[folderPath]) return this._ids[folderPath];
       const parts = folderPath.split('/').filter(Boolean);
-      let parentId = this._rootId, cur = '';
+      let parentId = this._rootId, cur = '', cacheUpdated = false;
       for (const name of parts) {
         cur = cur ? `${cur}/${name}` : name;
         if (this._ids[cur]) { parentId = this._ids[cur]; continue; }
@@ -749,8 +756,9 @@ const STOULT = (() => {
           id = cr?.id;
         }
         if (!id) throw new Error(`Cannot find or create folder: ${cur}`);
-        this._ids[cur] = id; parentId = id;
+        this._ids[cur] = id; parentId = id; cacheUpdated = true;
       }
+      if (cacheUpdated) _saveFolderCache(this._rootId, this._ids);
       return parentId;
     },
 
@@ -1375,7 +1383,9 @@ async function completeRoutine(fileName) {
 
 async function deleteRoutine(fileName) {
   if (!confirm('Delete this routine?')) return;
-  await storage.deleteFile(`${KEEP_BASE}/Routines/${fileName}`);
+  try {
+    await storage.deleteFile(`${KEEP_BASE}/Routines/${fileName}`);
+  } catch(e) { showToast('delete failed — check vault', 'error'); return; }
   appData.routines = appData.routines.filter(r => r._file !== fileName);
   renderAll();
   showToast('routine removed');
@@ -1405,7 +1415,7 @@ async function adjustStock(fileName, delta) {
   item.quantity = Math.max(0, item.quantity + delta);
   checkAndAutoRestock(item);
   renderAll();
-  writeStockItem(item);
+  await writeStockItem(item);
 }
 
 async function setRestockAt(fileName, val) {
@@ -1429,7 +1439,9 @@ function checkAndAutoRestock(item) {
 
 async function deleteStockItem(fileName) {
   if (!confirm('Remove from stock?')) return;
-  await storage.deleteFile(`${KEEP_BASE}/Stock/${fileName}`);
+  try {
+    await storage.deleteFile(`${KEEP_BASE}/Stock/${fileName}`);
+  } catch(e) { showToast('delete failed — check vault', 'error'); return; }
   appData.stock = appData.stock.filter(x => x._file !== fileName);
   renderAll();
   showToast('item removed');
